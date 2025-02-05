@@ -438,7 +438,10 @@ services:
 
   # Frontend web application.
   web:
-    image: langgenius/dify-web:0.15.2
+    build:
+      context: ../web  # Path to the web folder relative to docker-compose.yaml
+      dockerfile: Dockerfile
+    image: tiby-web:latest  # Your custom image name
     restart: always
     environment:
       CONSOLE_API_URL: ${CONSOLE_API_URL:-}
