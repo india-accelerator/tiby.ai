@@ -5,23 +5,24 @@ import classNames from '@/utils/classnames'
 
 type HeaderWrapperProps = {
   children: React.ReactNode
+  isCollapsed: boolean
 }
 
-const HeaderWrapper = ({
-  children,
-}: HeaderWrapperProps) => {
+const HeaderWrapper = ({ children, isCollapsed }: HeaderWrapperProps) => {
   const pathname = usePathname()
   const isBordered = ['/apps', '/datasets', '/datasets/create', '/tools'].includes(pathname)
 
   return (
     <div className={classNames(
-      'sticky top-0 left-0 right-0 z-30 flex flex-col grow-0 shrink-0 basis-auto min-h-[56px] py-2',
+      'fixed top-0 left-0 z-30 flex flex-col grow-0 shrink-0 basis-auto min-h-[56px] py-2',
+      'transition-all duration-300',
+      isCollapsed ? 'w-32' : 'w-48',
       s.header,
-      isBordered ? 'border-b border-divider-regular' : '',
-    )}
-    >
+      isBordered ? 'border-r border-divider-regular' : '',
+    )}>
       {children}
     </div>
   )
 }
+
 export default HeaderWrapper

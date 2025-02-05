@@ -51,7 +51,7 @@ export default function AppSelector({ isMobile }: IAppSelector) {
   }
 
   return (
-    <div className="">
+    <div className="relative">
       <Menu as="div" className="relative inline-block text-left">
         {
           ({ open }) => (
@@ -82,7 +82,7 @@ export default function AppSelector({ isMobile }: IAppSelector) {
               >
                 <Menu.Items
                   className="
-                    absolute right-0 mt-1.5 w-60 max-w-80
+                    absolute left-0 bottom-full mb-1.5 w-60 max-w-80
                     divide-y divide-divider-subtle origin-top-right rounded-lg bg-components-panel-bg-blur
                     shadow-lg focus:outline-none
                   "
