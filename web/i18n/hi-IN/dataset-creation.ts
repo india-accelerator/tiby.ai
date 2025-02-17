@@ -65,7 +65,7 @@ const translation = {
       firecrawlTitle: '🔥फायरक्रॉल के साथ वेब सामग्री निकालें',
       firecrawlDoc: 'फायरक्रॉल दस्तावेज़',
       firecrawlDocLink:
-        'https://docs.dify.ai/guides/knowledge-base/sync_from_website',
+        'https://docs.tiby.ai/guides/knowledge-base/sync_from_website',
       options: 'विकल्प',
       crawlSubPage: 'उप-पृष्ठों को क्रॉल करें',
       limit: 'सीमा',

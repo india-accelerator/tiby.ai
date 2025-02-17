@@ -68,7 +68,7 @@ const translation = {
       run: '実行',
       firecrawlTitle: '🔥Firecrawlを使っでウエブコンテンツを抽出',
       firecrawlDoc: 'Firecrawlドキュメント',
-      firecrawlDocLink: 'https://docs.dify.ai/guides/knowledge-base/sync-from-website',
+      firecrawlDocLink: 'https://docs.tiby.ai/guides/knowledge-base/sync-from-website',
       options: 'オプション',
       crawlSubPage: 'サブページをクロールする',
       limit: '制限',

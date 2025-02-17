@@ -66,7 +66,7 @@ const translation = {
       firecrawlTitle: 'Estrai contenuti web con 🔥Firecrawl',
       firecrawlDoc: 'Documenti Firecrawl',
       firecrawlDocLink:
-        'https://docs.dify.ai/guides/knowledge-base/sync_from_website',
+        'https://docs.tiby.ai/guides/knowledge-base/sync_from_website',
       options: 'Opzioni',
       crawlSubPage: 'Crawl sotto-pagine',
       limit: 'Limite',
