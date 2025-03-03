@@ -10,7 +10,6 @@ import {
   useEmbeddedChatbotContext,
 } from './context'
 import { useEmbeddedChatbot } from './hooks'
-import { isDify } from './utils'
 import { useThemeContext } from './theme/theme-context'
 import cn from '@/utils/classnames'
 import { checkOrSetAccessToken } from '@/app/components/share/utils'

@@ -10,7 +10,6 @@ import { useChat } from '../chat/hooks'
 import { getLastAnswer, isValidGeneratedAnswer } from '../utils'
 import { useEmbeddedChatbotContext } from './context'
 import ConfigPanel from './config-panel'
-import { isDify } from './utils'
 import cn from '@/utils/classnames'
 import {
   fetchSuggestedQuestions,

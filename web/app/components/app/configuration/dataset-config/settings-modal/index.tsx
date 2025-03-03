@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import { isEqual } from 'lodash-es'
 import { RiCloseLine } from '@remixicon/react'
 import { BookOpenIcon } from '@heroicons/react/24/outline'
-import { ApiConnectionMod } from '@/app/components/base/icons/src/vender/solid/development'
 import cn from '@/utils/classnames'
 import IndexMethodRadio from '@/app/components/datasets/settings/index-method-radio'
 import Divider from '@/app/components/base/divider'
@@ -294,7 +293,7 @@ const SettingsModal: FC<SettingsModalProps> = ({
                 isInRetrievalSetting={true}
               />
             </div>
-            <div className={rowClass}><Divider /></div>
+            {/* <div className={rowClass}><Divider /></div>
             <div className={rowClass}>
               <div className={labelClass}>
                 <div className='text-text-secondary system-sm-semibold'>{t('datasetSettings.form.externalKnowledgeAPI')}</div>
@@ -309,7 +308,7 @@ const SettingsModal: FC<SettingsModalProps> = ({
                   <div className='text-text-tertiary system-xs-regular'>{currentDataset?.external_knowledge_info.external_knowledge_api_endpoint}</div>
                 </div>
               </div>
-            </div>
+            </div> */}
             <div className={rowClass}>
               <div className={labelClass}>
                 <div className='text-text-secondary system-sm-semibold'>{t('datasetSettings.form.externalKnowledgeID')}</div>
@@ -327,8 +326,8 @@ const SettingsModal: FC<SettingsModalProps> = ({
               <div>
                 <div className='text-text-secondary system-sm-semibold'>{t('datasetSettings.form.retrievalSetting.title')}</div>
                 <div className='leading-[18px] text-xs font-normal text-gray-500'>
-                  <a target='_blank' rel='noopener noreferrer' href='https://docs.tiby.ai/guides/knowledge-base/create-knowledge-and-upload-documents#id-4-retrieval-settings' className='text-[#542cb7]'>{t('datasetSettings.form.retrievalSetting.learnMore')}</a>
-                  {t('datasetSettings.form.retrievalSetting.description')}
+                  {/* <a target='_blank' rel='noopener noreferrer' href='https://docs.tiby.ai/guides/knowledge-base/create-knowledge-and-upload-documents#id-4-retrieval-settings' className='text-[#542cb7]'>{t('datasetSettings.form.retrievalSetting.learnMore')}</a>
+                  {t('datasetSettings.form.retrievalSetting.description')} */}
                 </div>
               </div>
             </div>

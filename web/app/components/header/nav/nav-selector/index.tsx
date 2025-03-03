@@ -15,7 +15,7 @@ import { AiText, ChatBot, CuteRobot } from '@/app/components/base/icons/src/vend
 import { Route } from '@/app/components/base/icons/src/vender/solid/mapsAndTravel'
 import { useAppContext } from '@/context/app-context'
 import { useStore as useAppStore } from '@/app/components/app/store'
-import { FileArrow01, FilePlus01, FilePlus02 } from '@/app/components/base/icons/src/vender/line/files'
+import { FileArrow01, FilePlus01 } from '@/app/components/base/icons/src/vender/line/files'
 import type { AppIconType } from '@/types/app'
 
 export type NavItem = {
@@ -161,10 +161,10 @@ const NavSelector = ({ curNav, navs, createText, isApp, onCreate, onLoadmore }: 
                               <FilePlus01 className='shrink-0 mr-2 w-4 h-4 text-gray-600' />
                               {t('app.newApp.startFromBlank')}
                             </div>
-                            <div className={cn('flex items-center px-3 py-[6px] rounded-lg cursor-pointer hover:bg-gray-100 text-gray-700 font-normal')} onClick={() => onCreate('template')}>
+                            {/* <div className={cn('flex items-center px-3 py-[6px] rounded-lg cursor-pointer hover:bg-gray-100 text-gray-700 font-normal')} onClick={() => onCreate('template')}>
                               <FilePlus02 className='shrink-0 mr-2 w-4 h-4 text-gray-600' />
                               {t('app.newApp.startFromTemplate')}
-                            </div>
+                            </div> */}
                           </div>
                           <div className='p-1 border-t border-gray-100'>
                             <div className={cn('flex items-center px-3 py-[6px] rounded-lg cursor-pointer hover:bg-gray-100 text-gray-700 font-normal')} onClick={() => onCreate('dsl')}>

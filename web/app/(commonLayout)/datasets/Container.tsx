@@ -16,9 +16,7 @@ import Doc from './Doc'
 import TabSliderNew from '@/app/components/base/tab-slider-new'
 import TagManagementModal from '@/app/components/base/tag-management'
 import TagFilter from '@/app/components/base/tag-management/filter'
-import Button from '@/app/components/base/button'
 import Input from '@/app/components/base/input'
-import { ApiConnectionMod } from '@/app/components/base/icons/src/vender/solid/development'
 import CheckboxWithLabel from '@/app/components/datasets/create/website/base/checkbox-with-label'
 
 // Services
@@ -108,14 +106,14 @@ const Container = () => {
               onChange={e => handleKeywordsChange(e.target.value)}
               onClear={() => handleKeywordsChange('')}
             />
-            <div className="w-[1px] h-4 bg-divider-regular" />
-            <Button
+            {/* <div className="w-[1px] h-4 bg-divider-regular" /> */}
+            {/* <Button
               className='gap-0.5 shadows-shadow-xs'
               onClick={() => setShowExternalApiPanel(true)}
             >
               <ApiConnectionMod className='w-4 h-4 text-components-button-secondary-text' />
               <div className='flex px-0.5 justify-center items-center gap-1 text-components-button-secondary-text system-sm-medium'>{t('dataset.externalAPIPanelTitle')}</div>
-            </Button>
+            </Button> */}
           </div>
         )}
         {activeTab === 'api' && data && <ApiServer apiBaseUrl={data.api_base_url || ''} />}

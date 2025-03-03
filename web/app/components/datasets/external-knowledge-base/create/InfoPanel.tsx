@@ -21,9 +21,9 @@ const InfoPanel = () => {
             </a>
             {t('dataset.connectDatasetIntro.content.end')}
           </span>
-          <a className='self-stretch text-text-accent system-sm-regular' href='https://docs.tiby.ai/guides/knowledge-base/connect-external-knowledge' target='_blank' rel="noopener noreferrer">
+          {/* <a className='self-stretch text-text-accent system-sm-regular' href='https://docs.tiby.ai/guides/knowledge-base/connect-external-knowledge' target='_blank' rel="noopener noreferrer">
             {t('dataset.connectDatasetIntro.learnMore')}
-          </a>
+          </a> */}
         </p>
       </div>
     </div>

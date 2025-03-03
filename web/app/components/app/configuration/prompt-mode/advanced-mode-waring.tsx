@@ -4,7 +4,6 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { useContext } from 'use-context-selector'
 import I18n from '@/context/i18n'
-import { LanguagesSupported } from '@/i18n/language'
 type Props = {
   onReturnToSimpleMode: () => void
 }
@@ -21,7 +20,7 @@ const AdvancedModeWarning: FC<Props> = ({
     <div className='mb-3 py-3 px-4 border border-[#FEF0C7] rounded-xl bg-[#FFFAEB]' >
       <div className='mb-2 text-xs leading-[18px] font-bold text-[#DC6803]'>{t('appDebug.promptMode.advancedWarning.title')}</div>
       <div className='flex justify-between items-center'>
-        <div className='text-xs leading-[18px] '>
+        {/* <div className='text-xs leading-[18px] '>
           <span className='text-gray-700'>{t('appDebug.promptMode.advancedWarning.description')}</span>
           <a
             className='font-medium text-[#542cb7]'
@@ -30,7 +29,7 @@ const AdvancedModeWarning: FC<Props> = ({
           >
             {t('appDebug.promptMode.advancedWarning.learnMore')}
           </a>
-        </div>
+        </div> */}
 
         <div className='flex items-center space-x-1'>
           <div

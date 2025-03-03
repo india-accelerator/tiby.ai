@@ -33,7 +33,7 @@ const OPTION_MAP = {
   scripts: {
     getContent: (url: string, token: string, primaryColor: string, isTestEnv?: boolean) =>
       `<script>
- window.difyChatbotConfig = {
+ window.tibyChatbotConfig = {
   token: '${token}'${isTestEnv
   ? `,
   isDev: true`
@@ -49,17 +49,14 @@ const OPTION_MAP = {
  defer>
 </script>
 <style>
-  #dify-chatbot-bubble-button {
+  #tiby-chatbot-bubble-button {
     background-color: ${primaryColor} !important;
   }
-  #dify-chatbot-bubble-window {
+  #tiby-chatbot-bubble-window {
     width: 24rem !important;
     height: 40rem !important;
   }
 </style>`,
-  },
-  chromePlugin: {
-    getContent: (url: string, token: string) => `ChatBot URL: ${url}/chatbot/${token}`,
   },
 }
 const prefixEmbedded = 'appOverview.overview.appInfo.embedded'
@@ -122,7 +119,7 @@ const Embedded = ({ siteInfo, isShow, onClose, appBaseUrl, accessToken, classNam
       <div className="mb-4 mt-8 text-gray-900 text-[14px] font-medium leading-tight">
         {t(`${prefixEmbedded}.explanation`)}
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-y-2">
+      <div className="flex flex-wrap items-center justify-around gap-y-2">
         {Object.keys(OPTION_MAP).map((v, index) => {
           return (
             <div
@@ -140,7 +137,7 @@ const Embedded = ({ siteInfo, isShow, onClose, appBaseUrl, accessToken, classNam
           )
         })}
       </div>
-      {option === 'chromePlugin' && (
+      {/* {option === 'chromePlugin' && (
         <div className="w-full mt-6">
           <div className={cn('gap-2 py-3 justify-center items-center inline-flex w-full rounded-lg',
             'bg-primary-600 hover:bg-primary-600/75 hover:shadow-md cursor-pointer text-white hover:shadow-sm flex-shrink-0')}>
@@ -148,7 +145,7 @@ const Embedded = ({ siteInfo, isShow, onClose, appBaseUrl, accessToken, classNam
             <div className="text-white text-sm font-medium font-['Inter'] leading-tight" onClick={navigateToChromeUrl}>{t(`${prefixEmbedded}.chromePlugin`)}</div>
           </div>
         </div>
-      )}
+      )} */}
       <div className={cn('w-full bg-gray-100 rounded-lg flex-col justify-start items-start inline-flex',
         'mt-6')}>
         <div className="inline-flex items-center self-stretch justify-start gap-2 py-1 pl-3 pr-1 border border-black rounded-tl-lg rounded-tr-lg bg-gray-50 border-opacity-5">
