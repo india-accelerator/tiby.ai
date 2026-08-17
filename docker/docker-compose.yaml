@@ -393,7 +393,7 @@ x-shared-env: &shared-api-worker-env
 services:
   # API service
   api:
-    image: langgenius/dify-api:0.15.2
+    image: ${API_IMAGE:-langgenius/dify-api:0.15.2}
     restart: always
     environment:
       # Use the shared environment variables.
@@ -416,7 +416,7 @@ services:
   # worker service
   # The Celery worker for processing the queue.
   worker:
-    image: langgenius/dify-api:0.15.2
+    image: ${API_IMAGE:-langgenius/dify-api:0.15.2}
     restart: always
     environment:
       # Use the shared environment variables.
@@ -438,10 +438,7 @@ services:
 
   # Frontend web application.
   web:
-    build:
-      context: ../web  # Path to the web folder relative to docker-compose.yaml
-      dockerfile: Dockerfile
-    image: tiby-web:latest  # Your custom image name
+    image: ${WEB_IMAGE:-langgenius/dify-web:0.15.2}
     restart: always
     environment:
       CONSOLE_API_URL: ${CONSOLE_API_URL:-}
