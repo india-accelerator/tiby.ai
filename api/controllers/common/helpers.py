@@ -1,16 +1,32 @@
+import contextlib
 import mimetypes
 import os
+import platform
 import re
 import urllib.parse
-from collections.abc import Mapping
-from typing import Any
+import warnings
 from uuid import uuid4
 
 import httpx
-import magic
-from pydantic import BaseModel
 
-from configs import dify_config
+try:
+    import magic
+except ImportError:
+    if platform.system() == "Windows":
+        warnings.warn(
+            "To use python-magic guess MIMETYPE, you need to run `pip install python-magic-bin`", stacklevel=2
+        )
+    elif platform.system() == "Darwin":
+        warnings.warn("To use python-magic guess MIMETYPE, you need to run `brew install libmagic`", stacklevel=2)
+    elif platform.system() == "Linux":
+        warnings.warn(
+            "To use python-magic guess MIMETYPE, you need to run `sudo apt-get install libmagic1`", stacklevel=2
+        )
+    else:
+        warnings.warn("To use python-magic guess MIMETYPE, you need to install `libmagic`", stacklevel=2)
+    magic = None  # type: ignore[assignment]
+
+from pydantic import BaseModel
 
 
 class FileInfo(BaseModel):
@@ -20,12 +36,31 @@ class FileInfo(BaseModel):
     size: int
 
 
+def decode_remote_url(url: str, query_string: bytes | str = b"") -> str:
+    decoded_url = urllib.parse.unquote(url)
+    if isinstance(query_string, bytes):
+        raw_query = query_string.decode()
+    else:
+        raw_query = query_string
+    if not raw_query:
+        return decoded_url
+
+    if decoded_url.endswith(("?", "&")):
+        separator = ""
+    elif urllib.parse.urlsplit(decoded_url).query:
+        separator = "&"
+    else:
+        separator = "?"
+    return f"{decoded_url}{separator}{raw_query}"
+
+
 def guess_file_info_from_response(response: httpx.Response):
     url = str(response.url)
     # Try to extract filename from URL
     parsed_url = urllib.parse.urlparse(url)
     url_path = parsed_url.path
-    filename = os.path.basename(url_path)
+    # Decode percent-encoded characters in the path segment
+    filename = urllib.parse.unquote(os.path.basename(url_path))
 
     # If filename couldn't be extracted, use Content-Disposition header
     if not filename:
@@ -49,11 +84,9 @@ def guess_file_info_from_response(response: httpx.Response):
         mimetype = response.headers.get("Content-Type", "application/octet-stream")
 
     # Use python-magic to guess MIME type if still unknown or generic
-    if mimetype == "application/octet-stream":
-        try:
+    if mimetype == "application/octet-stream" and magic is not None:
+        with contextlib.suppress(magic.MagicException):
             mimetype = magic.from_buffer(response.content[:1024], mime=True)
-        except magic.MagicException:
-            pass
 
     extension = os.path.splitext(filename)[1]
 
@@ -68,38 +101,3 @@ def guess_file_info_from_response(response: httpx.Response):
         mimetype=mimetype,
         size=int(response.headers.get("Content-Length", -1)),
     )
-
-
-def get_parameters_from_feature_dict(*, features_dict: Mapping[str, Any], user_input_form: list[dict[str, Any]]):
-    return {
-        "opening_statement": features_dict.get("opening_statement"),
-        "suggested_questions": features_dict.get("suggested_questions", []),
-        "suggested_questions_after_answer": features_dict.get("suggested_questions_after_answer", {"enabled": False}),
-        "speech_to_text": features_dict.get("speech_to_text", {"enabled": False}),
-        "text_to_speech": features_dict.get("text_to_speech", {"enabled": False}),
-        "retriever_resource": features_dict.get("retriever_resource", {"enabled": False}),
-        "annotation_reply": features_dict.get("annotation_reply", {"enabled": False}),
-        "more_like_this": features_dict.get("more_like_this", {"enabled": False}),
-        "user_input_form": user_input_form,
-        "sensitive_word_avoidance": features_dict.get(
-            "sensitive_word_avoidance", {"enabled": False, "type": "", "configs": []}
-        ),
-        "file_upload": features_dict.get(
-            "file_upload",
-            {
-                "image": {
-                    "enabled": False,
-                    "number_limits": 3,
-                    "detail": "high",
-                    "transfer_methods": ["remote_url", "local_file"],
-                }
-            },
-        ),
-        "system_parameters": {
-            "image_file_size_limit": dify_config.UPLOAD_IMAGE_FILE_SIZE_LIMIT,
-            "video_file_size_limit": dify_config.UPLOAD_VIDEO_FILE_SIZE_LIMIT,
-            "audio_file_size_limit": dify_config.UPLOAD_AUDIO_FILE_SIZE_LIMIT,
-            "file_size_limit": dify_config.UPLOAD_FILE_SIZE_LIMIT,
-            "workflow_file_upload_limit": dify_config.WORKFLOW_FILE_UPLOAD_LIMIT,
-        },
-    }

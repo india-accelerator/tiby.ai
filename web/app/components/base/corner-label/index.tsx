@@ -1,18 +1,33 @@
+import { cn } from '@langgenius/dify-ui/cn'
 import { Corner } from '../icons/src/vender/solid/shapes'
-import cn from '@/utils/classnames'
 
 type CornerLabelProps = {
   label: string
   className?: string
+  cornerClassName?: string
   labelClassName?: string
+  textClassName?: string
 }
 
-const CornerLabel: React.FC<CornerLabelProps> = ({ label, className, labelClassName }) => {
+const CornerLabel: React.FC<CornerLabelProps> = ({
+  label,
+  className,
+  cornerClassName,
+  labelClassName,
+  textClassName,
+}) => {
   return (
     <div className={cn('group/corner-label inline-flex items-start', className)}>
-      <Corner className='w-[13px] h-5 text-background-section group-hover/corner-label:text-background-section-burn' />
-      <div className={cn('flex py-1 pr-2 items-center gap-0.5 bg-background-section group-hover/corner-label:bg-background-section-burn', labelClassName)}>
-        <div className='text-text-tertiary system-2xs-medium-uppercase'>{label}</div>
+      <Corner className={cn('h-5 w-[13px] text-background-section-burn', cornerClassName)} />
+      <div
+        className={cn(
+          'flex items-center gap-0.5 bg-background-section-burn py-1 pr-2',
+          labelClassName,
+        )}
+      >
+        <div className={cn('system-2xs-medium-uppercase text-text-tertiary', textClassName)}>
+          {label}
+        </div>
       </div>
     </div>
   )

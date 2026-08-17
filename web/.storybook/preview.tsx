@@ -1,37 +1,65 @@
-import React from 'react'
-import type { Preview } from '@storybook/react'
-import { withThemeByDataAttribute } from '@storybook/addon-themes';
-import I18nServer from '../app/components/i18n-server'
-
-import '../app/styles/globals.css'
-import '../app/styles/markdown.scss'
+import type { Decorator, Preview } from '@storybook/react'
+import type { Resource } from 'i18next'
+import { ToastHost } from '@langgenius/dify-ui/toast'
+import { withThemeByDataAttribute } from '@storybook/addon-themes'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { I18nClientProvider as I18N } from '../app/components/provider/i18n'
+import commonEnUS from '../i18n/en-US/common.json'
+import '../app/styles/markdown.css'
 import './storybook.css'
 
-export const decorators = [
-    withThemeByDataAttribute({
-      themes: {
-        light: 'light',
-        dark: 'dark',
-      },
-      defaultTheme: 'light',
-      attributeName: 'data-theme',
-    }),
-    Story => {
-      return <I18nServer>
-        <Story />
-      </I18nServer>
-    }
-  ];
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+    },
+  },
+})
+
+const storyResources: Resource = {
+  'en-US': {
+    // Preload the most common namespace to avoid missing keys during initial render;
+    // other namespaces will be loaded on demand via resourcesToBackend.
+    common: commonEnUS as unknown as Record<string, unknown>,
+  },
+}
+
+export const decorators: Decorator[] = [
+  withThemeByDataAttribute({
+    themes: {
+      light: 'light',
+      dark: 'dark',
+    },
+    defaultTheme: 'light',
+    attributeName: 'data-theme',
+  }),
+  (Story) => {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <I18N locale="en-US" resource={storyResources}>
+          <>
+            <ToastHost />
+            <Story />
+          </>
+        </I18N>
+      </QueryClientProvider>
+    )
+  },
+]
 
 const preview: Preview = {
   parameters: {
-        controls: {
-            matchers: {
-                color: /(background|color)$/i,
-                date: /Date$/i,
-            },
-        },
+    controls: {
+      matchers: {
+        color: /(background|color)$/i,
+        date: /Date$/i,
+      },
     },
+    docs: {
+      toc: true,
+    },
+  },
+  tags: ['autodocs'],
 }
 
 export default preview

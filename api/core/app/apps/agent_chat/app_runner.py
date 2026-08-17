@@ -1,6 +1,9 @@
 import logging
 from typing import cast
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from core.agent.cot_chat_agent_runner import CotChatAgentRunner
 from core.agent.cot_completion_agent_runner import CotCompletionAgentRunner
 from core.agent.entities import AgentEntity
@@ -8,18 +11,16 @@ from core.agent.fc_agent_runner import FunctionCallAgentRunner
 from core.app.apps.agent_chat.app_config_manager import AgentChatAppConfig
 from core.app.apps.base_app_queue_manager import AppQueueManager, PublishFrom
 from core.app.apps.base_app_runner import AppRunner
-from core.app.entities.app_invoke_entities import AgentChatAppGenerateEntity, ModelConfigWithCredentialsEntity
+from core.app.entities.app_invoke_entities import AgentChatAppGenerateEntity
 from core.app.entities.queue_entities import QueueAnnotationReplyEvent
+from core.db.session_factory import create_session
 from core.memory.token_buffer_memory import TokenBufferMemory
 from core.model_manager import ModelInstance
-from core.model_runtime.entities.llm_entities import LLMMode, LLMUsage
-from core.model_runtime.entities.model_entities import ModelFeature, ModelPropertyKey
-from core.model_runtime.model_providers.__base.large_language_model import LargeLanguageModel
 from core.moderation.base import ModerationError
-from core.tools.entities.tool_entities import ToolRuntimeVariablePool
-from extensions.ext_database import db
-from models.model import App, Conversation, Message, MessageAgentThought
-from models.tools import ToolConversationVariables
+from graphon.model_runtime.entities.llm_entities import LLMMode
+from graphon.model_runtime.entities.model_entities import ModelFeature, ModelPropertyKey
+from graphon.model_runtime.model_providers.base.large_language_model import LargeLanguageModel
+from models.model import App, Conversation, Message
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +36,13 @@ class AgentChatAppRunner(AppRunner):
         queue_manager: AppQueueManager,
         conversation: Conversation,
         message: Message,
-    ) -> None:
-        """
-        Run assistant application
+        session: Session,
+    ):
+        """Run the assistant application with bounded explicit transactions.
+
+        The setup session is committed and released before the multi-step agent
+        runner begins model or tool I/O.
+
         :param application_generate_entity: application generate entity
         :param queue_manager: application queue manager
         :param conversation: conversation
@@ -46,28 +51,17 @@ class AgentChatAppRunner(AppRunner):
         """
         app_config = application_generate_entity.app_config
         app_config = cast(AgentChatAppConfig, app_config)
-
-        app_record = db.session.query(App).filter(App.id == app_config.app_id).first()
+        app_stmt = select(App).where(App.id == app_config.app_id)
+        with create_session() as read_session:
+            app_record = read_session.scalar(app_stmt)
+            if app_record:
+                read_session.expunge(app_record)
         if not app_record:
             raise ValueError("App not found")
 
         inputs = application_generate_entity.inputs
         query = application_generate_entity.query
         files = application_generate_entity.files
-
-        # Pre-calculate the number of tokens of the prompt messages,
-        # and return the rest number of tokens by model context token size limit and max token size limit.
-        # If the rest number of tokens is not enough, raise exception.
-        # Include: prompt template, inputs, query(optional), files(optional)
-        # Not Include: memory, external data, dataset context
-        self.get_pre_calculate_rest_tokens(
-            app_record=app_record,
-            model_config=application_generate_entity.model_conf,
-            prompt_template_entity=app_config.prompt_template,
-            inputs=inputs,
-            files=files,
-            query=query,
-        )
 
         memory = None
         if application_generate_entity.conversation_id:
@@ -86,8 +80,8 @@ class AgentChatAppRunner(AppRunner):
             app_record=app_record,
             model_config=application_generate_entity.model_conf,
             prompt_template_entity=app_config.prompt_template,
-            inputs=inputs,
-            files=files,
+            inputs=dict(inputs),
+            files=list(files),
             query=query,
             memory=memory,
         )
@@ -99,8 +93,8 @@ class AgentChatAppRunner(AppRunner):
                 app_id=app_record.id,
                 tenant_id=app_config.tenant_id,
                 app_generate_entity=application_generate_entity,
-                inputs=inputs,
-                query=query,
+                inputs=dict(inputs),
+                query=query or "",
                 message_id=message.id,
             )
         except ModerationError as e:
@@ -121,7 +115,10 @@ class AgentChatAppRunner(AppRunner):
                 query=query,
                 user_id=application_generate_entity.user_id,
                 invoke_from=application_generate_entity.invoke_from,
+                session=session,
             )
+            session.commit()
+            session.close()
 
             if annotation_reply:
                 queue_manager.publish(
@@ -156,8 +153,8 @@ class AgentChatAppRunner(AppRunner):
             app_record=app_record,
             model_config=application_generate_entity.model_conf,
             prompt_template_entity=app_config.prompt_template,
-            inputs=inputs,
-            files=files,
+            inputs=dict(inputs),
+            files=list(files),
             query=query,
             memory=memory,
         )
@@ -173,16 +170,7 @@ class AgentChatAppRunner(AppRunner):
             return
 
         agent_entity = app_config.agent
-        if not agent_entity:
-            raise ValueError("Agent entity not found")
-
-        # load tool variables
-        tool_conversation_variables = self._load_tool_variables(
-            conversation_id=conversation.id, user_id=application_generate_entity.user_id, tenant_id=app_config.tenant_id
-        )
-
-        # convert db variables to tool variables
-        tool_variables = self._convert_db_variables_to_tool_variables(tool_conversation_variables)
+        assert agent_entity is not None
 
         # init model instance
         model_instance = ModelInstance(
@@ -193,36 +181,41 @@ class AgentChatAppRunner(AppRunner):
             app_record=app_record,
             model_config=application_generate_entity.model_conf,
             prompt_template_entity=app_config.prompt_template,
-            inputs=inputs,
-            files=files,
+            inputs=dict(inputs),
+            files=list(files),
             query=query,
             memory=memory,
         )
 
         # change function call strategy based on LLM model
         llm_model = cast(LargeLanguageModel, model_instance.model_type_instance)
-        model_schema = llm_model.get_model_schema(model_instance.model, model_instance.credentials)
+        model_schema = llm_model.get_model_schema(model_instance.model_name, model_instance.credentials)
         if not model_schema:
             raise ValueError("Model schema not found")
 
         if {ModelFeature.MULTI_TOOL_CALL, ModelFeature.TOOL_CALL}.intersection(model_schema.features or []):
             agent_entity.strategy = AgentEntity.Strategy.FUNCTION_CALLING
+        conversation_stmt = select(Conversation).where(Conversation.id == conversation.id)
+        msg_stmt = select(Message).where(Message.id == message.id)
+        with create_session() as read_session:
+            conversation_result = read_session.scalar(conversation_stmt)
+            if conversation_result is None:
+                raise ValueError("Conversation not found")
 
-        conversation_result = db.session.query(Conversation).filter(Conversation.id == conversation.id).first()
-        if conversation_result is None:
-            raise ValueError("Conversation not found")
-        message_result = db.session.query(Message).filter(Message.id == message.id).first()
+            message_result = read_session.scalar(msg_stmt)
+            if message_result is not None:
+                read_session.expunge(message_result)
+            read_session.expunge(conversation_result)
         if message_result is None:
             raise ValueError("Message not found")
-        db.session.close()
 
         runner_cls: type[FunctionCallAgentRunner] | type[CotChatAgentRunner] | type[CotCompletionAgentRunner]
         # start agent runner
         if agent_entity.strategy == AgentEntity.Strategy.CHAIN_OF_THOUGHT:
             # check LLM mode
-            if model_schema.model_properties.get(ModelPropertyKey.MODE) == LLMMode.CHAT.value:
+            if model_schema.model_properties.get(ModelPropertyKey.MODE) == LLMMode.CHAT:
                 runner_cls = CotChatAgentRunner
-            elif model_schema.model_properties.get(ModelPropertyKey.MODE) == LLMMode.COMPLETION.value:
+            elif model_schema.model_properties.get(ModelPropertyKey.MODE) == LLMMode.COMPLETION:
                 runner_cls = CotCompletionAgentRunner
             else:
                 raise ValueError(f"Invalid LLM mode: {model_schema.model_properties.get(ModelPropertyKey.MODE)}")
@@ -232,6 +225,7 @@ class AgentChatAppRunner(AppRunner):
             raise ValueError(f"Invalid agent strategy: {agent_entity.strategy}")
 
         runner = runner_cls(
+            session=session,
             tenant_id=app_config.tenant_id,
             application_generate_entity=application_generate_entity,
             conversation=conversation_result,
@@ -243,12 +237,14 @@ class AgentChatAppRunner(AppRunner):
             user_id=application_generate_entity.user_id,
             memory=memory,
             prompt_messages=prompt_message,
-            variables_pool=tool_variables,
-            db_variables=tool_conversation_variables,
             model_instance=model_instance,
         )
 
+        session.commit()
+        session.close()
+
         invoke_result = runner.run(
+            session=session,
             message=message,
             query=query,
             inputs=inputs,
@@ -260,74 +256,7 @@ class AgentChatAppRunner(AppRunner):
             queue_manager=queue_manager,
             stream=application_generate_entity.stream,
             agent=True,
-        )
-
-    def _load_tool_variables(self, conversation_id: str, user_id: str, tenant_id: str) -> ToolConversationVariables:
-        """
-        load tool variables from database
-        """
-        tool_variables: ToolConversationVariables | None = (
-            db.session.query(ToolConversationVariables)
-            .filter(
-                ToolConversationVariables.conversation_id == conversation_id,
-                ToolConversationVariables.tenant_id == tenant_id,
-            )
-            .first()
-        )
-
-        if tool_variables:
-            # save tool variables to session, so that we can update it later
-            db.session.add(tool_variables)
-        else:
-            # create new tool variables
-            tool_variables = ToolConversationVariables(
-                conversation_id=conversation_id,
-                user_id=user_id,
-                tenant_id=tenant_id,
-                variables_str="[]",
-            )
-            db.session.add(tool_variables)
-            db.session.commit()
-
-        return tool_variables
-
-    def _convert_db_variables_to_tool_variables(
-        self, db_variables: ToolConversationVariables
-    ) -> ToolRuntimeVariablePool:
-        """
-        convert db variables to tool variables
-        """
-        return ToolRuntimeVariablePool(
-            **{
-                "conversation_id": db_variables.conversation_id,
-                "user_id": db_variables.user_id,
-                "tenant_id": db_variables.tenant_id,
-                "pool": db_variables.variables,
-            }
-        )
-
-    def _get_usage_of_all_agent_thoughts(
-        self, model_config: ModelConfigWithCredentialsEntity, message: Message
-    ) -> LLMUsage:
-        """
-        Get usage of all agent thoughts
-        :param model_config: model config
-        :param message: message
-        :return:
-        """
-        agent_thoughts = (
-            db.session.query(MessageAgentThought).filter(MessageAgentThought.message_id == message.id).all()
-        )
-
-        all_message_tokens = 0
-        all_answer_tokens = 0
-        for agent_thought in agent_thoughts:
-            all_message_tokens += agent_thought.message_tokens
-            all_answer_tokens += agent_thought.answer_tokens
-
-        model_type_instance = model_config.provider_model_bundle.model_type_instance
-        model_type_instance = cast(LargeLanguageModel, model_type_instance)
-
-        return model_type_instance._calc_response_usage(
-            model_config.model, model_config.credentials, all_message_tokens, all_answer_tokens
+            message_id=message.id,
+            user_id=application_generate_entity.user_id,
+            tenant_id=app_config.tenant_id,
         )

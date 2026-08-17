@@ -1,29 +1,32 @@
 'use client'
-import { useTranslation } from 'react-i18next'
 import type { FC } from 'react'
-import ToolCall from './tool-call'
-import cn from '@/utils/classnames'
 import type { AgentIteration } from '@/models/log'
+import { cn } from '@langgenius/dify-ui/cn'
+import { useTranslation } from 'react-i18next'
+import Divider from '@/app/components/base/divider'
+import ToolCall from './tool-call'
 
-type Props = {
+type Props = Readonly<{
   isFinal: boolean
   index: number
   iterationInfo: AgentIteration
-}
+}>
 
 const Iteration: FC<Props> = ({ iterationInfo, isFinal, index }) => {
   const { t } = useTranslation()
 
   return (
     <div className={cn('px-4 py-2')}>
-      <div className='flex items-center'>
+      <div className="flex items-center">
         {isFinal && (
-          <div className='shrink-0 mr-3 text-gray-500 text-xs leading-[18px] font-semibold'>{t('appLog.agentLogDetail.finalProcessing')}</div>
+          <div className="mr-3 shrink-0 text-xs leading-[18px] font-semibold text-text-tertiary">
+            {t(($) => $['agentLogDetail.finalProcessing'], { ns: 'appLog' })}
+          </div>
         )}
         {!isFinal && (
-          <div className='shrink-0 mr-3 text-gray-500 text-xs leading-[18px] font-semibold'>{`${t('appLog.agentLogDetail.iteration').toUpperCase()} ${index}`}</div>
+          <div className="mr-3 shrink-0 text-xs leading-[18px] font-semibold text-text-tertiary">{`${t(($) => $['agentLogDetail.iteration'], { ns: 'appLog' }).toUpperCase()} ${index}`}</div>
         )}
-        <div className='grow h-[1px] bg-gradient-to-r from-[#f3f4f6] to-gray-50'></div>
+        <Divider bgStyle="gradient" className="mx-0 h-px grow" />
       </div>
       <ToolCall
         isLLM
@@ -37,11 +40,7 @@ const Iteration: FC<Props> = ({ iterationInfo, isFinal, index }) => {
         }}
       />
       {iterationInfo.tool_calls.map((toolCall, index) => (
-        <ToolCall
-          isLLM={false}
-          key={index}
-          toolCall={toolCall}
-        />
+        <ToolCall isLLM={false} key={index} toolCall={toolCall} />
       ))}
     </div>
   )

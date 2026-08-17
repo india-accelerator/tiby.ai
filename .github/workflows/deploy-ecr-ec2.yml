@@ -35,7 +35,12 @@ on:
     paths:
       - "api/**"
       - "web/**"
+      - "dify-agent/**"
+      - "packages/**"
       - "docker/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
       - ".github/workflows/deploy-ecr-ec2.yml"
   workflow_dispatch:
 
@@ -57,16 +62,16 @@ jobs:
   build-and-push:
     name: Build and push ${{ matrix.name }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     strategy:
       fail-fast: true
       matrix:
         include:
           - name: api
-            context: api
+            dockerfile: api/Dockerfile
             repository: ${{ vars.ECR_API_REPOSITORY || 'tiby-api' }}
           - name: web
-            context: web
+            dockerfile: web/Dockerfile
             repository: ${{ vars.ECR_WEB_REPOSITORY || 'tiby-web' }}
 
     steps:
@@ -101,8 +106,8 @@ jobs:
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.context }}/Dockerfile
+          context: .
+          file: ${{ matrix.dockerfile }}
           push: true
           platforms: linux/amd64
           build-args: |
@@ -165,6 +170,7 @@ jobs:
             docker pull "$API_IMAGE"
             echo "Pulling $WEB_IMAGE"
             docker pull "$WEB_IMAGE"
+            docker tag "$WEB_IMAGE" tiby-web:latest
 
             cd "$COMPOSE_DIR"
 

@@ -1,27 +1,29 @@
-import type { FC } from 'react'
+import type { ReactElement, ReactNode } from 'react'
+import type { ChatItem, Feedback } from '../../types'
+import { Button } from '@langgenius/dify-ui/button'
+import { cn } from '@langgenius/dify-ui/cn'
 import {
-  memo,
-  useMemo,
-  useState,
-} from 'react'
+  Dialog,
+  DialogCloseButton,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@langgenius/dify-ui/dialog'
+import { Textarea } from '@langgenius/dify-ui/textarea'
+import { toast } from '@langgenius/dify-ui/toast'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@langgenius/dify-ui/tooltip'
+import copy from 'copy-to-clipboard'
+import { memo, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { ChatItem } from '../../types'
-import { useChatContext } from '../context'
-import RegenerateBtn from '@/app/components/base/regenerate-btn'
-import cn from '@/utils/classnames'
-import CopyBtn from '@/app/components/base/copy-btn'
-import { MessageFast } from '@/app/components/base/icons/src/vender/solid/communication'
-import AudioBtn from '@/app/components/base/audio-btn'
-import AnnotationCtrlBtn from '@/app/components/base/features/new-feature-panel/annotation-reply/annotation-ctrl-btn'
 import EditReplyModal from '@/app/components/app/annotation/edit-annotation-modal'
-import {
-  ThumbsDown,
-  ThumbsUp,
-} from '@/app/components/base/icons/src/vender/line/alertsAndFeedback'
-import Tooltip from '@/app/components/base/tooltip'
+import ActionButton, { ActionButtonState } from '@/app/components/base/action-button'
 import Log from '@/app/components/base/chat/chat/log'
+import AnnotationCtrlButton from '@/app/components/base/features/new-feature-panel/annotation-reply/annotation-ctrl-button'
+import NewAudioButton from '@/app/components/base/new-audio-button'
+import { useChatContext } from '../context'
 
 type OperationProps = {
+  answerActionPosition?: AnswerActionPosition
   item: ChatItem
   question: string
   index: number
@@ -31,7 +33,46 @@ type OperationProps = {
   hasWorkflowProcess: boolean
   noChatInput?: boolean
 }
-const Operation: FC<OperationProps> = ({
+
+export type AnswerActionPosition = 'auto' | 'below'
+
+type FeedbackTooltipProps = {
+  content: ReactNode
+  children: ReactElement
+}
+
+const feedbackTooltipClassName = 'max-w-[260px]'
+const answerActiveFlexClassName = 'group-hover:flex group-has-[[data-popup-open]]:flex'
+const answerActiveBlockClassName = 'group-hover:block group-has-[[data-popup-open]]:block'
+
+function joinPublicContent(blocks: Array<string | undefined>) {
+  return blocks.filter((block): block is string => !!block?.trim()).join('\n\n')
+}
+
+function getPublicResponseContent(item: ChatItem) {
+  if (item.content.trim()) return item.content
+
+  const responseContent = joinPublicContent(
+    item.agent_response_parts?.map((part) =>
+      part.type === 'message' ? part.content : undefined,
+    ) ?? [],
+  )
+  if (responseContent) return responseContent
+
+  return joinPublicContent(item.agent_thoughts?.map((thought) => thought.answer) ?? [])
+}
+
+const FeedbackTooltip = ({ content, children }: FeedbackTooltipProps) => {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={children} />
+      <TooltipContent className={feedbackTooltipClassName}>{content}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+function Operation({
+  answerActionPosition = 'auto',
   item,
   question,
   index,
@@ -40,7 +81,7 @@ const Operation: FC<OperationProps> = ({
   contentWidth,
   hasWorkflowProcess,
   noChatInput,
-}) => {
+}: OperationProps) {
   const { t } = useTranslation()
   const {
     config,
@@ -49,188 +90,404 @@ const Operation: FC<OperationProps> = ({
     onAnnotationRemoved,
     onFeedback,
     onRegenerate,
+    showRegenerate,
+    readonly,
   } = useChatContext()
   const [isShowReplyModal, setIsShowReplyModal] = useState(false)
-  const {
-    id,
-    isOpeningStatement,
-    content: messageContent,
-    annotation,
-    feedback,
-    adminFeedback,
-    agent_thoughts,
-  } = item
-  const hasAnnotation = !!annotation?.id
-  const [localFeedback, setLocalFeedback] = useState(config?.supportAnnotation ? adminFeedback : feedback)
+  const [isShowFeedbackModal, setIsShowFeedbackModal] = useState(false)
+  const [feedbackContent, setFeedbackContent] = useState('')
+  const { id, isOpeningStatement, annotation, feedback, adminFeedback, humanInputFormDataList } =
+    item
+  const [userLocalFeedback, setUserLocalFeedback] = useState(feedback)
+  const [adminLocalFeedback, setAdminLocalFeedback] = useState(adminFeedback)
+  const [feedbackTarget, setFeedbackTarget] = useState<'user' | 'admin'>('user')
+  const feedbackTextareaId = useId()
 
-  const content = useMemo(() => {
-    if (agent_thoughts?.length)
-      return agent_thoughts.reduce((acc, cur) => acc + cur.thought, '')
+  const userFeedback = feedback
 
-    return messageContent
-  }, [agent_thoughts, messageContent])
+  const content = getPublicResponseContent(item)
+  const hasPublicContent = !!content.trim()
 
-  const handleFeedback = async (rating: 'like' | 'dislike' | null) => {
-    if (!config?.supportFeedback || !onFeedback)
-      return
+  const displayUserFeedback = userLocalFeedback ?? userFeedback
 
-    await onFeedback?.(id, { rating })
-    setLocalFeedback({ rating })
+  const hasUserFeedback = !!displayUserFeedback?.rating
+  const hasAdminFeedback = !!adminLocalFeedback?.rating
+
+  const shouldShowUserFeedbackBar =
+    !isOpeningStatement && config?.supportFeedback && !!onFeedback && !config?.supportAnnotation
+  const shouldShowAdminFeedbackBar =
+    !isOpeningStatement && config?.supportFeedback && !!onFeedback && !!config?.supportAnnotation
+  const canManageAnnotation =
+    !readonly && !!onAnnotationAdded && !!onAnnotationEdited && !!onAnnotationRemoved
+  const shouldShowAnnotationAction =
+    canManageAnnotation &&
+    hasPublicContent &&
+    !!config?.supportAnnotation &&
+    !!config.annotation_reply?.enabled &&
+    !humanInputFormDataList?.length
+
+  const userFeedbackLabel =
+    t(($) => $['table.header.userRate'], { ns: 'appLog' }) || 'User feedback'
+  const adminFeedbackLabel =
+    t(($) => $['table.header.adminRate'], { ns: 'appLog' }) || 'Admin feedback'
+  const likeLabel = t(($) => $['detail.operation.like'], { ns: 'appLog' }) || 'Like'
+  const dislikeLabel = t(($) => $['detail.operation.dislike'], { ns: 'appLog' }) || 'Dislike'
+  const removeFeedbackLabel = t(($) => $['operation.remove'], { ns: 'common' }) || 'Remove'
+  const copyLabel = t(($) => $['operation.copy'], { ns: 'common' }) || 'Copy'
+  const regenerateLabel = t(($) => $['operation.regenerate'], { ns: 'common' }) || 'Regenerate'
+
+  const buildFeedbackTooltip = (feedbackData?: Feedback | null, label = userFeedbackLabel) => {
+    if (!feedbackData?.rating) return label
+
+    const ratingLabel =
+      feedbackData.rating === 'like'
+        ? t(($) => $['detail.operation.like'], { ns: 'appLog' }) || 'like'
+        : t(($) => $['detail.operation.dislike'], { ns: 'appLog' }) || 'dislike'
+    const feedbackText = feedbackData.content?.trim()
+
+    if (feedbackText) return `${label}: ${ratingLabel} - ${feedbackText}`
+
+    return `${label}: ${ratingLabel}`
+  }
+
+  const handleFeedback = async (
+    rating: 'like' | 'dislike' | null,
+    content?: string,
+    target: 'user' | 'admin' = 'user',
+  ) => {
+    if (!config?.supportFeedback || !onFeedback) return
+
+    await onFeedback?.(id, { rating, content })
+
+    const nextFeedback = rating === null ? { rating: null } : { rating, content }
+
+    if (target === 'admin') setAdminLocalFeedback(nextFeedback)
+    else setUserLocalFeedback(nextFeedback)
+  }
+
+  const handleLikeClick = (target: 'user' | 'admin') => {
+    handleFeedback('like', undefined, target)
+  }
+
+  const handleDislikeClick = (target: 'user' | 'admin') => {
+    setFeedbackTarget(target)
+    setIsShowFeedbackModal(true)
+  }
+
+  const handleFeedbackSubmit = async () => {
+    await handleFeedback('dislike', feedbackContent, feedbackTarget)
+    setFeedbackContent('')
+    setIsShowFeedbackModal(false)
+  }
+
+  const handleFeedbackCancel = () => {
+    setFeedbackContent('')
+    setIsShowFeedbackModal(false)
   }
 
   const operationWidth = useMemo(() => {
     let width = 0
-    if (!isOpeningStatement)
-      width += 28
-    if (!isOpeningStatement && showPromptLog)
-      width += 102 + 8
-    if (!isOpeningStatement && config?.text_to_speech?.enabled)
-      width += 33
-    if (!isOpeningStatement && config?.supportAnnotation && config?.annotation_reply?.enabled)
-      width += 56 + 8
-    if (config?.supportFeedback && !localFeedback?.rating && onFeedback && !isOpeningStatement)
-      width += 60 + 8
-    if (config?.supportFeedback && localFeedback?.rating && onFeedback && !isOpeningStatement)
-      width += 28 + 8
-    return width
-  }, [isOpeningStatement, showPromptLog, config?.text_to_speech?.enabled, config?.supportAnnotation, config?.annotation_reply?.enabled, config?.supportFeedback, localFeedback?.rating, onFeedback])
+    if (!isOpeningStatement) width += 26
+    if (!isOpeningStatement && showPromptLog) width += 28 + 8
+    if (!isOpeningStatement && config?.text_to_speech?.enabled && hasPublicContent) width += 26
+    if (!isOpeningStatement && shouldShowAnnotationAction) width += 26
+    if (shouldShowUserFeedbackBar) width += hasUserFeedback ? 28 + 8 : 60 + 8
+    if (shouldShowAdminFeedbackBar)
+      width += (hasAdminFeedback ? 28 : 60) + 8 + (hasUserFeedback ? 28 : 0)
 
-  const positionRight = useMemo(() => operationWidth < maxSize, [operationWidth, maxSize])
+    return width
+  }, [
+    config?.text_to_speech?.enabled,
+    hasAdminFeedback,
+    hasPublicContent,
+    hasUserFeedback,
+    isOpeningStatement,
+    shouldShowAdminFeedbackBar,
+    shouldShowAnnotationAction,
+    shouldShowUserFeedbackBar,
+    showPromptLog,
+  ])
+
+  const positionRight = useMemo(
+    () => answerActionPosition === 'auto' && operationWidth < maxSize,
+    [answerActionPosition, operationWidth, maxSize],
+  )
 
   return (
     <>
       <div
         className={cn(
           'absolute flex justify-end gap-1',
-          hasWorkflowProcess && '-top-3.5 -right-3.5',
-          !positionRight && '-top-3.5 -right-3.5',
-          !hasWorkflowProcess && positionRight && '!top-[9px]',
+          hasWorkflowProcess && 'right-2 -bottom-4',
+          !positionRight && 'right-2 -bottom-4',
+          !hasWorkflowProcess && positionRight && 'top-[9px]!',
         )}
-        style={(!hasWorkflowProcess && positionRight) ? { left: contentWidth + 8 } : {}}
+        style={!hasWorkflowProcess && positionRight ? { left: contentWidth + 8 } : {}}
+        data-testid="operation-bar"
       >
-        {!isOpeningStatement && (
-          <CopyBtn
-            value={content}
-            className='hidden group-hover:block'
-          />
-        )}
-
-        {!isOpeningStatement && (showPromptLog || config?.text_to_speech?.enabled) && (
-          <div className='hidden group-hover:flex items-center w-max h-[28px] p-0.5 rounded-lg bg-white border-[0.5px] border-gray-100 shadow-md shrink-0'>
-            {showPromptLog && (
-              <>
-                <Log logItem={item} />
-                <div className='mx-1 w-[1px] h-[14px] bg-gray-200' />
-              </>
+        {shouldShowUserFeedbackBar && !humanInputFormDataList?.length && (
+          <div
+            className={cn(
+              'ml-1 items-center gap-0.5 rounded-[10px] border-[0.5px] border-components-actionbar-border bg-components-actionbar-bg p-0.5 shadow-md backdrop-blur-xs',
+              hasUserFeedback ? 'flex' : `hidden ${answerActiveFlexClassName}`,
             )}
-
-            {(config?.text_to_speech?.enabled) && (
+          >
+            {hasUserFeedback ? (
+              <FeedbackTooltip
+                content={buildFeedbackTooltip(displayUserFeedback, userFeedbackLabel)}
+              >
+                <ActionButton
+                  aria-label={`${userFeedbackLabel}: ${removeFeedbackLabel}`}
+                  state={
+                    displayUserFeedback?.rating === 'like'
+                      ? ActionButtonState.Active
+                      : ActionButtonState.Destructive
+                  }
+                  onClick={() => handleFeedback(null, undefined, 'user')}
+                >
+                  {displayUserFeedback?.rating === 'like' ? (
+                    <span aria-hidden="true" className="i-ri-thumb-up-line size-4" />
+                  ) : (
+                    <span aria-hidden="true" className="i-ri-thumb-down-line size-4" />
+                  )}
+                </ActionButton>
+              </FeedbackTooltip>
+            ) : (
               <>
-                <AudioBtn
-                  id={id}
-                  value={content}
-                  noCache={false}
-                  voice={config?.text_to_speech?.voice}
-                  className='hidden group-hover:block'
-                />
+                <ActionButton
+                  aria-label={`${userFeedbackLabel}: ${likeLabel}`}
+                  state={
+                    displayUserFeedback?.rating === 'like'
+                      ? ActionButtonState.Active
+                      : ActionButtonState.Default
+                  }
+                  onClick={() => handleLikeClick('user')}
+                >
+                  <span aria-hidden="true" className="i-ri-thumb-up-line size-4" />
+                </ActionButton>
+                <ActionButton
+                  aria-label={`${userFeedbackLabel}: ${dislikeLabel}`}
+                  state={
+                    displayUserFeedback?.rating === 'dislike'
+                      ? ActionButtonState.Destructive
+                      : ActionButtonState.Default
+                  }
+                  onClick={() => handleDislikeClick('user')}
+                >
+                  <span aria-hidden="true" className="i-ri-thumb-down-line size-4" />
+                </ActionButton>
               </>
             )}
           </div>
         )}
+        {shouldShowAdminFeedbackBar && !humanInputFormDataList?.length && (
+          <div
+            className={cn(
+              'ml-1 items-center gap-0.5 rounded-[10px] border-[0.5px] border-components-actionbar-border bg-components-actionbar-bg p-0.5 shadow-md backdrop-blur-xs',
+              hasAdminFeedback || hasUserFeedback ? 'flex' : `hidden ${answerActiveFlexClassName}`,
+            )}
+          >
+            {displayUserFeedback?.rating && (
+              <FeedbackTooltip
+                content={buildFeedbackTooltip(displayUserFeedback, userFeedbackLabel)}
+              >
+                {displayUserFeedback.rating === 'like' ? (
+                  <ActionButton
+                    aria-label={`${userFeedbackLabel}: ${likeLabel}`}
+                    state={ActionButtonState.Active}
+                  >
+                    <span aria-hidden="true" className="i-ri-thumb-up-line size-4" />
+                  </ActionButton>
+                ) : (
+                  <ActionButton
+                    aria-label={`${userFeedbackLabel}: ${dislikeLabel}`}
+                    state={ActionButtonState.Destructive}
+                  >
+                    <span aria-hidden="true" className="i-ri-thumb-down-line size-4" />
+                  </ActionButton>
+                )}
+              </FeedbackTooltip>
+            )}
 
-        {(!isOpeningStatement && config?.supportAnnotation && config.annotation_reply?.enabled) && (
-          <AnnotationCtrlBtn
-            appId={config?.appId || ''}
-            messageId={id}
-            annotationId={annotation?.id || ''}
-            className='hidden group-hover:block ml-1 shrink-0'
-            cached={hasAnnotation}
-            query={question}
-            answer={content}
-            onAdded={(id, authorName) => onAnnotationAdded?.(id, authorName, question, content, index)}
-            onEdit={() => setIsShowReplyModal(true)}
-            onRemoved={() => onAnnotationRemoved?.(index)}
-          />
+            {displayUserFeedback?.rating && (
+              <div className="mx-1 h-3 w-[0.5px] bg-components-actionbar-border" />
+            )}
+            {hasAdminFeedback ? (
+              <FeedbackTooltip
+                content={buildFeedbackTooltip(adminLocalFeedback, adminFeedbackLabel)}
+              >
+                <ActionButton
+                  aria-label={`${adminFeedbackLabel}: ${removeFeedbackLabel}`}
+                  state={
+                    adminLocalFeedback?.rating === 'like'
+                      ? ActionButtonState.Active
+                      : ActionButtonState.Destructive
+                  }
+                  onClick={() => handleFeedback(null, undefined, 'admin')}
+                >
+                  {adminLocalFeedback?.rating === 'like' ? (
+                    <span aria-hidden="true" className="i-ri-thumb-up-line size-4" />
+                  ) : (
+                    <span aria-hidden="true" className="i-ri-thumb-down-line size-4" />
+                  )}
+                </ActionButton>
+              </FeedbackTooltip>
+            ) : (
+              <>
+                <FeedbackTooltip
+                  content={buildFeedbackTooltip(adminLocalFeedback, adminFeedbackLabel)}
+                >
+                  <ActionButton
+                    aria-label={`${adminFeedbackLabel}: ${likeLabel}`}
+                    state={
+                      adminLocalFeedback?.rating === 'like'
+                        ? ActionButtonState.Active
+                        : ActionButtonState.Default
+                    }
+                    onClick={() => handleLikeClick('admin')}
+                  >
+                    <span aria-hidden="true" className="i-ri-thumb-up-line size-4" />
+                  </ActionButton>
+                </FeedbackTooltip>
+                <FeedbackTooltip
+                  content={buildFeedbackTooltip(adminLocalFeedback, adminFeedbackLabel)}
+                >
+                  <ActionButton
+                    aria-label={`${adminFeedbackLabel}: ${dislikeLabel}`}
+                    state={
+                      adminLocalFeedback?.rating === 'dislike'
+                        ? ActionButtonState.Destructive
+                        : ActionButtonState.Default
+                    }
+                    onClick={() => handleDislikeClick('admin')}
+                  >
+                    <span aria-hidden="true" className="i-ri-thumb-down-line size-4" />
+                  </ActionButton>
+                </FeedbackTooltip>
+              </>
+            )}
+          </div>
         )}
-        {
-          annotation?.id && (
-            <div
-              className='relative box-border flex items-center justify-center h-7 w-7 p-0.5 rounded-lg bg-white cursor-pointer text-[#444CE7] shadow-md group-hover:hidden'
-            >
-              <div className='p-1 rounded-lg bg-[#EEF4FF] '>
-                <MessageFast className='w-4 h-4' />
-              </div>
-            </div>
-          )
-        }
-        {
-          !isOpeningStatement && !noChatInput && <RegenerateBtn className='hidden group-hover:block mr-1' onClick={() => onRegenerate?.(item)} />
-        }
-        {
-          config?.supportFeedback && !localFeedback?.rating && onFeedback && !isOpeningStatement && (
-            <div className='hidden group-hover:flex shrink-0 items-center px-0.5 bg-white border-[0.5px] border-gray-100 shadow-md text-gray-500 rounded-lg'>
-              <Tooltip popupContent={t('appDebug.operation.agree')}>
-                <div
-                  className='flex items-center justify-center mr-0.5 w-6 h-6 rounded-md hover:bg-black/5 hover:text-gray-800 cursor-pointer'
-                  onClick={() => handleFeedback('like')}
-                >
-                  <ThumbsUp className='w-4 h-4' />
-                </div>
-              </Tooltip>
-              <Tooltip
-                popupContent={t('appDebug.operation.disagree')}
+        {showPromptLog && !isOpeningStatement && (
+          <div className={cn('hidden', answerActiveBlockClassName)}>
+            <Log logItem={item} />
+          </div>
+        )}
+        {!isOpeningStatement && (
+          <div
+            className={cn(
+              'ml-1 hidden items-center gap-0.5 rounded-[10px] border-[0.5px] border-components-actionbar-border bg-components-actionbar-bg p-0.5 shadow-md backdrop-blur-xs',
+              answerActiveFlexClassName,
+            )}
+            data-testid="operation-actions"
+          >
+            {config?.text_to_speech?.enabled &&
+              hasPublicContent &&
+              !humanInputFormDataList?.length && (
+                <NewAudioButton id={id} value={content} voice={config?.text_to_speech?.voice} />
+              )}
+            {hasPublicContent && !humanInputFormDataList?.length && (
+              <ActionButton
+                aria-label={copyLabel}
+                onClick={() => {
+                  copy(content)
+                  toast.success(t(($) => $['actionMsg.copySuccessfully'], { ns: 'common' }))
+                }}
               >
-                <div
-                  className='flex items-center justify-center w-6 h-6 rounded-md hover:bg-black/5 hover:text-gray-800 cursor-pointer'
-                  onClick={() => handleFeedback('dislike')}
-                >
-                  <ThumbsDown className='w-4 h-4' />
-                </div>
-              </Tooltip>
-            </div>
-          )
-        }
-        {
-          config?.supportFeedback && localFeedback?.rating && onFeedback && !isOpeningStatement && (
-            <Tooltip
-              popupContent={localFeedback.rating === 'like' ? t('appDebug.operation.cancelAgree') : t('appDebug.operation.cancelDisagree')}
-            >
-              <div
-                className={`
-                  flex items-center justify-center w-7 h-7 rounded-[10px] border-[2px] border-white cursor-pointer
-                  ${localFeedback.rating === 'like' && 'bg-blue-50 text-blue-600'}
-                  ${localFeedback.rating === 'dislike' && 'bg-red-100 text-red-600'}
-                `}
-                onClick={() => handleFeedback(null)}
-              >
-                {
-                  localFeedback.rating === 'like' && (
-                    <ThumbsUp className='w-4 h-4' />
-                  )
+                <span aria-hidden="true" className="i-ri-clipboard-line size-4" />
+              </ActionButton>
+            )}
+            {(!noChatInput || showRegenerate) && (
+              <ActionButton aria-label={regenerateLabel} onClick={() => onRegenerate?.(item)}>
+                <span aria-hidden="true" className="i-ri-reset-left-line size-4" />
+              </ActionButton>
+            )}
+            {shouldShowAnnotationAction && (
+              <AnnotationCtrlButton
+                appId={config?.appId || ''}
+                messageId={id}
+                cached={!!annotation?.id}
+                query={question}
+                answer={content}
+                onAdded={(id, authorName) =>
+                  onAnnotationAdded?.(id, authorName, question, content, index)
                 }
-                {
-                  localFeedback.rating === 'dislike' && (
-                    <ThumbsDown className='w-4 h-4' />
-                  )
-                }
-              </div>
-            </Tooltip>
-          )
-        }
+                onEdit={() => setIsShowReplyModal(true)}
+              />
+            )}
+          </div>
+        )}
       </div>
-      <EditReplyModal
-        isShow={isShowReplyModal}
-        onHide={() => setIsShowReplyModal(false)}
-        query={question}
-        answer={content}
-        onEdited={(editedQuery, editedAnswer) => onAnnotationEdited?.(editedQuery, editedAnswer, index)}
-        onAdded={(annotationId, authorName, editedQuery, editedAnswer) => onAnnotationAdded?.(annotationId, authorName, editedQuery, editedAnswer, index)}
-        appId={config?.appId || ''}
-        messageId={id}
-        annotationId={annotation?.id || ''}
-        createdAt={annotation?.created_at}
-        onRemove={() => onAnnotationRemoved?.(index)}
-      />
+      {canManageAnnotation && (
+        <EditReplyModal
+          isShow={isShowReplyModal}
+          onHide={() => setIsShowReplyModal(false)}
+          query={question}
+          answer={content}
+          onEdited={(editedQuery, editedAnswer) =>
+            onAnnotationEdited?.(editedQuery, editedAnswer, index)
+          }
+          onAdded={(annotationId, authorName, editedQuery, editedAnswer) =>
+            onAnnotationAdded?.(annotationId, authorName, editedQuery, editedAnswer, index)
+          }
+          appId={config?.appId || ''}
+          messageId={id}
+          annotationId={annotation?.id || ''}
+          createdAt={annotation?.created_at}
+          onRemove={() => onAnnotationRemoved?.(index)}
+        />
+      )}
+      {isShowFeedbackModal && (
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) handleFeedbackCancel()
+          }}
+        >
+          <DialogContent backdropProps={{ forceRender: true }} className="p-0">
+            <div className="flex max-h-[80dvh] flex-col">
+              <div className="relative shrink-0 p-6 pr-14 pb-3">
+                <DialogTitle className="title-2xl-semi-bold text-text-primary">
+                  {t(($) => $['feedback.title'], { ns: 'common' }) || 'Provide Feedback'}
+                </DialogTitle>
+                <DialogDescription className="mt-1 system-xs-regular text-text-tertiary">
+                  {t(($) => $['feedback.subtitle'], { ns: 'common' }) ||
+                    'Please tell us what went wrong with this response'}
+                </DialogDescription>
+                <DialogCloseButton className="top-5 right-5 size-8 rounded-lg" />
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-3">
+                <label
+                  htmlFor={feedbackTextareaId}
+                  className="mb-2 block system-sm-semibold text-text-secondary"
+                >
+                  {t(($) => $['feedback.content'], { ns: 'common' }) || 'Feedback Content'}
+                </label>
+                <Textarea
+                  id={feedbackTextareaId}
+                  name="feedback-content"
+                  value={feedbackContent}
+                  onValueChange={(value) => setFeedbackContent(value)}
+                  placeholder={
+                    t(($) => $['feedback.placeholder'], { ns: 'common' }) ||
+                    'Please describe what went wrong or how we can improve…'
+                  }
+                  rows={4}
+                  className="w-full"
+                />
+              </div>
+              <div className="flex shrink-0 justify-end p-6 pt-5">
+                <Button onClick={handleFeedbackCancel}>
+                  {t(($) => $['operation.cancel'], { ns: 'common' }) || 'Cancel'}
+                </Button>
+                <Button className="ml-2" variant="primary" onClick={handleFeedbackSubmit}>
+                  {t(($) => $['operation.submit'], { ns: 'common' }) || 'Submit'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   )
 }

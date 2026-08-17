@@ -1,67 +1,100 @@
 'use client'
-import { useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { useContext } from 'use-context-selector'
-import {
-  RiAddLine,
-} from '@remixicon/react'
 import type { CustomCollectionBackend } from '../types'
-import I18n from '@/context/i18n'
-import { getLanguage } from '@/i18n/language'
+import { Button } from '@langgenius/dify-ui/button'
+import { toast } from '@langgenius/dify-ui/toast'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import EditCustomToolModal from '@/app/components/tools/edit-custom-collection-modal'
+import { useCanManageTools } from '@/app/components/tools/hooks/use-tool-permissions'
+import { useDocLink } from '@/context/i18n'
 import { createCustomCollection } from '@/service/tools'
-import Toast from '@/app/components/base/toast'
-import { useAppContext } from '@/context/app-context'
+import CreateEntryCard from './create-entry-card'
 
-type Props = {
+type Props = Readonly<{
   onRefreshData: () => void
-}
+  stepByStepTourTarget?: string
+}>
 
-const Contribute = ({ onRefreshData }: Props) => {
+function useCustomToolCreateAction({ onRefreshData }: Props) {
   const { t } = useTranslation()
-  const { locale } = useContext(I18n)
-  const language = getLanguage(locale)
-  const { isCurrentWorkspaceManager } = useAppContext()
+  const canManageTools = useCanManageTools()
+  const [isShowEditCustomCollectionModal, setIsShowEditCustomCollectionModal] = useState(false)
 
-  const linkUrl = useMemo(() => {
-    if (language.startsWith('zh_'))
-      return 'https://docs.tiby.ai/zh-hans/guides/tools#ru-he-chuang-jian-zi-ding-yi-gong-ju'
-    return 'https://docs.tiby.ai/guides/tools#how-to-create-custom-tools'
-  }, [language])
-
-  const [isShowEditCollectionToolModal, setIsShowEditCustomCollectionModal] = useState(false)
   const doCreateCustomToolCollection = async (data: CustomCollectionBackend) => {
+    if (!canManageTools) return
+
     await createCustomCollection(data)
-    Toast.notify({
-      type: 'success',
-      message: t('common.api.actionSuccess'),
-    })
+    toast.success(t(($) => $['api.actionSuccess'], { ns: 'common' }))
     setIsShowEditCustomCollectionModal(false)
     onRefreshData()
   }
 
+  return {
+    canManageTools,
+    doCreateCustomToolCollection,
+    isShowEditCustomCollectionModal,
+    setIsShowEditCustomCollectionModal,
+  }
+}
+
+export const NewCustomToolButton = ({ onRefreshData }: Props) => {
+  const { t } = useTranslation()
+  const addSwaggerAPIAsToolLabel = t(($) => $.addSwaggerAPIAsTool, { ns: 'tools' })
+  const {
+    canManageTools,
+    doCreateCustomToolCollection,
+    isShowEditCustomCollectionModal,
+    setIsShowEditCustomCollectionModal,
+  } = useCustomToolCreateAction({ onRefreshData })
+
+  if (!canManageTools) return null
+
   return (
     <>
-      {isCurrentWorkspaceManager && (
-        <div className='flex flex-col col-span-1 bg-gray-200 border-[0.5px] border-black/5 rounded-xl min-h-[160px] transition-all duration-200 ease-in-out cursor-pointer hover:bg-gray-50 hover:shadow-lg'>
-          <div className='group grow rounded-t-xl hover:bg-white' onClick={() => setIsShowEditCustomCollectionModal(true)}>
-            <div className='shrink-0 flex items-center p-4 pb-3'>
-              <div className='w-10 h-10 flex items-center justify-center border border-gray-200 bg-gray-100 rounded-lg group-hover:border-primary-100 group-hover:bg-primary-50'>
-                <RiAddLine className='w-4 h-4 text-gray-500 group-hover:text-primary-600'/>
-              </div>
-              <div className='ml-3 text-sm font-semibold leading-5 text-gray-800 group-hover:text-primary-600'>{t('tools.createCustomTool')}</div>
-            </div>
-          </div>
-          {/* <div className='px-4 py-3 rounded-b-xl border-t-[0.5px] border-black/5 text-gray-500 hover:text-[#542cb7] hover:bg-white'>
-            <a href={linkUrl} target='_blank' rel='noopener noreferrer' className='flex items-center space-x-1'>
-              <BookOpen01 className='shrink-0 w-3 h-3' />
-              <div className='grow leading-[18px] text-xs font-normal truncate' title={t('tools.customToolTip') || ''}>{t('tools.customToolTip')}</div>
-              <ArrowUpRight className='shrink-0 w-3 h-3' />
-            </a>
-          </div> */}
-        </div>
+      <Button
+        variant="secondary"
+        className="gap-0.5 px-3!"
+        onClick={() => setIsShowEditCustomCollectionModal(true)}
+        title={addSwaggerAPIAsToolLabel}
+        aria-label={addSwaggerAPIAsToolLabel}
+      >
+        <span aria-hidden className="i-ri-add-line size-4 shrink-0" />
+        {addSwaggerAPIAsToolLabel}
+      </Button>
+      {isShowEditCustomCollectionModal && (
+        <EditCustomToolModal
+          payload={null}
+          onHide={() => setIsShowEditCustomCollectionModal(false)}
+          onAdd={doCreateCustomToolCollection}
+        />
       )}
-      {isShowEditCollectionToolModal && (
+    </>
+  )
+}
+
+const Contribute = ({ onRefreshData, stepByStepTourTarget }: Props) => {
+  const { t } = useTranslation()
+  const docLink = useDocLink()
+  const {
+    canManageTools,
+    doCreateCustomToolCollection,
+    isShowEditCustomCollectionModal,
+    setIsShowEditCustomCollectionModal,
+  } = useCustomToolCreateAction({ onRefreshData })
+
+  return (
+    <>
+      {canManageTools && (
+        <CreateEntryCard
+          className="min-w-0"
+          title={t(($) => $.createSwaggerAPIAsTool, { ns: 'tools' })}
+          linkText={t(($) => $.swaggerAPIAsToolTip, { ns: 'tools' })}
+          linkUrl={docLink('/use-dify/workspace/tools#swagger-api')}
+          onCreate={() => setIsShowEditCustomCollectionModal(true)}
+          stepByStepTourTarget={stepByStepTourTarget}
+        />
+      )}
+      {isShowEditCustomCollectionModal && (
         <EditCustomToolModal
           payload={null}
           onHide={() => setIsShowEditCustomCollectionModal(false)}

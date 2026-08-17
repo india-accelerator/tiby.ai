@@ -10,6 +10,7 @@
 
 # next.js
 /.next/
+/.vinext/
 /out/
 
 # production
@@ -44,14 +45,23 @@ package-lock.json
 .pnp.cjs
 .pnp.loader.mjs
 .yarn/
-.yarnrc.yml
-
-# pmpm
-pnpm-lock.yaml
 
 .favorites.json
+
+# storybook
+/storybook-static
 *storybook.log
 
 # mise
 mise.toml
 
+
+# PWA generated files
+public/sw.js
+public/sw.js.map
+public/workbox-*.js
+public/workbox-*.js.map
+public/fallback-*.js
+
+.vscode/settings.json
+.vscode/mcp.json

@@ -1,124 +1,188 @@
 'use client'
 import type { FC } from 'react'
-import React from 'react'
+import { Button } from '@langgenius/dify-ui/button'
+import { RiBook2Line, RiFileEditLine, RiGroupLine } from '@remixicon/react'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { useUnmountedRef } from 'ahooks'
+import { useAtomValue } from 'jotai'
+import * as React from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plan } from '../type'
-import VectorSpaceInfo from '../usage-info/vector-space-info'
-import AppsInfo from '../usage-info/apps-info'
-import UpgradeBtn from '../upgrade-btn'
-import { User01 } from '../../base/icons/src/vender/line/users'
-import { MessageFastPlus } from '../../base/icons/src/vender/line/communication'
-import { FileUpload } from '../../base/icons/src/vender/line/files'
-import cn from '@/utils/classnames'
-import { useProviderContext } from '@/context/provider-context'
+import { ApiAggregate, TriggerAll } from '@/app/components/base/icons/src/vender/workflow'
 import UsageInfo from '@/app/components/billing/usage-info'
+import { useSetEducationVerifying } from '@/app/education-apply/storage'
+import VerifyStateModal from '@/app/education-apply/verify-state-modal'
+import { userProfileEmailAtom } from '@/context/account-state'
+import { useModalContextSelector } from '@/context/modal-context'
+import { useProviderContext } from '@/context/provider-context'
+import { isCurrentWorkspaceManagerAtom } from '@/context/workspace-state'
+import { systemFeaturesQueryOptions } from '@/features/system-features/client'
+import { usePathname, useRouter } from '@/next/navigation'
+import { useEducationVerify } from '@/service/use-education'
+import { getDaysUntilEndOfMonth } from '@/utils/time'
+import Loading from '../../base/icons/src/public/thought/Loading'
+import { NUM_INFINITE } from '../config'
+import { useEducationDiscount } from '../hooks/use-education-discount'
+import { Plan, SelfHostedPlan } from '../type'
+import UpgradeBtn from '../upgrade-btn'
+import AppsInfo from '../usage-info/apps-info'
+import VectorSpaceInfo from '../usage-info/vector-space-info'
+import { Enterprise, Professional, Sandbox, Team } from './assets'
 
-const typeStyle = {
-  [Plan.sandbox]: {
-    textClassNames: 'text-gray-900',
-    bg: 'linear-gradient(113deg, rgba(255, 255, 255, 0.51) 3.51%, rgba(255, 255, 255, 0.00) 111.71%), #EAECF0',
-  },
-  [Plan.professional]: {
-    textClassNames: 'text-[#026AA2]',
-    bg: 'linear-gradient(113deg, rgba(255, 255, 255, 0.51) 3.51%, rgba(255, 255, 255, 0.00) 111.71%), #E0F2FE',
-  },
-  [Plan.team]: {
-    textClassNames: 'text-[#3538CD]',
-    bg: 'linear-gradient(113deg, rgba(255, 255, 255, 0.51) 3.51%, rgba(255, 255, 255, 0.00) 111.71%), #E0EAFF',
-  },
-  [Plan.enterprise]: {
-    textClassNames: 'text-[#DC6803]',
-    bg: 'linear-gradient(113deg, rgba(255, 255, 255, 0.51) 3.51%, rgba(255, 255, 255, 0.00) 111.71%), #FFEED3',
-  },
-}
-
-type Props = {
+type Props = Readonly<{
   loc: string
-}
+}>
 
-const PlanComp: FC<Props> = ({
-  loc,
-}) => {
+const PlanComp: FC<Props> = ({ loc }) => {
   const { t } = useTranslation()
-  const { plan } = useProviderContext()
-  const {
-    type,
-  } = plan
+  const { data: deploymentEdition } = useSuspenseQuery({
+    ...systemFeaturesQueryOptions(),
+    select: ({ deployment_edition }) => deployment_edition,
+  })
+  const isCloudEdition = deploymentEdition === 'CLOUD'
+  const router = useRouter()
+  const path = usePathname()
+  const userProfileEmail = useAtomValue(userProfileEmailAtom)
+  const isCurrentWorkspaceManager = useAtomValue(isCurrentWorkspaceManagerAtom)
+  const { plan, enableEducationPlan, allowRefreshEducationVerify, isEducationAccount } =
+    useProviderContext()
+  const isAboutToExpire = allowRefreshEducationVerify
+  const { type } = plan
+  const isEnterprisePlan = String(type) === SelfHostedPlan.enterprise
 
-  const {
-    usage,
-    total,
-  } = plan
+  const { usage, total, reset } = plan
+  const triggerEventsResetInDays =
+    type === Plan.professional && total.triggerEvents !== NUM_INFINITE
+      ? (reset.triggerEvents ?? undefined)
+      : undefined
+  const apiRateLimitResetInDays = (() => {
+    if (total.apiRateLimit === NUM_INFINITE) return undefined
+    if (typeof reset.apiRateLimit === 'number') return reset.apiRateLimit
+    if (type === Plan.sandbox) return getDaysUntilEndOfMonth()
+    return undefined
+  })()
 
-  const isInHeader = loc === 'header'
-
+  const [showModal, setShowModal] = React.useState(false)
+  const { handleEducationDiscount, isEducationDiscountLoading } = useEducationDiscount()
+  const { mutateAsync, isPending } = useEducationVerify()
+  const setShowAccountSettingModal = useModalContextSelector((s) => s.setShowAccountSettingModal)
+  const setEducationVerifying = useSetEducationVerifying()
+  const unmountedRef = useUnmountedRef()
+  const handleVerify = () => {
+    if (isPending) return
+    mutateAsync()
+      .then((res) => {
+        setEducationVerifying(null)
+        if (unmountedRef.current) return
+        router.push(`/education-apply?token=${res.token}`)
+      })
+      .catch(() => {
+        setShowModal(true)
+      })
+  }
+  useEffect(() => {
+    // setShowAccountSettingModal would prevent navigation
+    if (path.startsWith('/education-apply')) setShowAccountSettingModal(null)
+  }, [path, setShowAccountSettingModal])
   return (
-    <div
-      className='rounded-xl border border-white select-none'
-      style={{
-        background: typeStyle[type].bg,
-        boxShadow: '5px 7px 12px 0px rgba(0, 0, 0, 0.06)',
-      }}
-    >
-      <div className='flex justify-between px-6 py-5 items-center'>
-        <div>
-          <div
-            className='leading-[18px] text-xs font-normal opacity-70'
-            style={{
-              color: 'rgba(0, 0, 0, 0.64)',
-            }}
-          >
-            {t('billing.currentPlan')}
+    <div className="relative rounded-2xl border-[0.5px] border-effects-highlight-lightmode-off bg-background-section-burn">
+      <div className="p-6 pb-2">
+        {plan.type === Plan.sandbox && <Sandbox />}
+        {plan.type === Plan.professional && <Professional />}
+        {plan.type === Plan.team && <Team />}
+        {isEnterprisePlan && <Enterprise />}
+        <div className="mt-1 flex items-center">
+          <div className="grow">
+            <div className="mb-1 flex items-center gap-1">
+              <div className="system-md-semibold-uppercase text-text-primary">
+                {t(($) => $[`plans.${type}.name`], { ns: 'billing' })}
+              </div>
+            </div>
+            <div className="system-xs-regular text-util-colors-gray-gray-600">
+              {t(($) => $[`plans.${type}.for`], { ns: 'billing' })}
+            </div>
           </div>
-          <div className={cn(typeStyle[type].textClassNames, 'leading-[125%] text-lg font-semibold uppercase')}>
-            {t(`billing.plans.${type}.name`)}
+          <div className="flex shrink-0 items-center gap-1">
+            {isCloudEdition && enableEducationPlan && (!isEducationAccount || isAboutToExpire) && (
+              <Button variant="ghost" onClick={handleVerify} disabled={isPending}>
+                <span className="mr-1 i-ri-graduation-cap-line size-4" />
+                {t(($) => $.toVerified, { ns: 'education' })}
+                {isPending && <Loading className="ml-1 animate-spin-slow" />}
+              </Button>
+            )}
+            {isCloudEdition &&
+              enableEducationPlan &&
+              isEducationAccount &&
+              type === Plan.sandbox &&
+              isCurrentWorkspaceManager && (
+                <Button
+                  variant="ghost"
+                  onClick={handleEducationDiscount}
+                  disabled={isEducationDiscountLoading}
+                >
+                  <span className="mr-1 i-ri-graduation-cap-line size-4" />
+                  {t(($) => $.useEducationDiscount, { ns: 'education' })}
+                  {isEducationDiscountLoading && <Loading className="ml-1 animate-spin-slow" />}
+                </Button>
+              )}
+            {isCloudEdition && !isEnterprisePlan && (
+              <UpgradeBtn className="shrink-0" isPlain={type === Plan.team} isShort loc={loc} />
+            )}
           </div>
         </div>
-        {(!isInHeader || (isInHeader && type !== Plan.sandbox)) && (
-          <UpgradeBtn
-            className='flex-shrink-0'
-            isPlain={type !== Plan.sandbox}
-            loc={loc}
-          />
-        )}
       </div>
-
       {/* Plan detail */}
-      <div className='rounded-xl bg-white px-6 py-3'>
-
+      <div className="grid grid-cols-3 content-start gap-1 p-2">
+        <AppsInfo />
         <UsageInfo
-          className='py-3'
-          Icon={User01}
-          name={t('billing.plansCommon.teamMembers')}
+          Icon={RiGroupLine}
+          name={t(($) => $['usagePage.teamMembers'], { ns: 'billing' })}
           usage={usage.teamMembers}
           total={total.teamMembers}
         />
-        <AppsInfo className='py-3' />
-        <VectorSpaceInfo className='py-3' />
         <UsageInfo
-          className='py-3'
-          Icon={MessageFastPlus}
-          name={t('billing.plansCommon.annotationQuota')}
+          Icon={RiBook2Line}
+          name={t(($) => $['usagePage.documentsUploadQuota'], { ns: 'billing' })}
+          usage={usage.documentsUploadQuota}
+          total={total.documentsUploadQuota}
+        />
+        <VectorSpaceInfo />
+        <UsageInfo
+          Icon={RiFileEditLine}
+          name={t(($) => $['usagePage.annotationQuota'], { ns: 'billing' })}
           usage={usage.annotatedResponse}
           total={total.annotatedResponse}
         />
         <UsageInfo
-          className='py-3'
-          Icon={FileUpload}
-          name={t('billing.plansCommon.documentsUploadQuota')}
-          usage={usage.documentsUploadQuota}
-          total={total.documentsUploadQuota}
+          Icon={TriggerAll}
+          name={t(($) => $['usagePage.triggerEvents'], { ns: 'billing' })}
+          usage={usage.triggerEvents}
+          total={total.triggerEvents}
+          tooltip={t(($) => $['plansCommon.triggerEvents.tooltip'], { ns: 'billing' }) as string}
+          resetInDays={triggerEventsResetInDays}
         />
-        {isInHeader && type === Plan.sandbox && (
-          <UpgradeBtn
-            className='flex-shrink-0 my-3'
-            isFull
-            size='lg'
-            isPlain={type !== Plan.sandbox}
-            loc={loc}
-          />
-        )}
+        <UsageInfo
+          Icon={ApiAggregate}
+          name={t(($) => $['plansCommon.apiRateLimit'], { ns: 'billing' })}
+          usage={usage.apiRateLimit}
+          total={total.apiRateLimit}
+          tooltip={
+            total.apiRateLimit === NUM_INFINITE
+              ? undefined
+              : (t(($) => $['plansCommon.apiRateLimitTooltip'], { ns: 'billing' }) as string)
+          }
+          resetInDays={apiRateLimitResetInDays}
+        />
       </div>
+      <VerifyStateModal
+        showLink
+        email={userProfileEmail}
+        isShow={showModal}
+        title={t(($) => $.rejectTitle, { ns: 'education' })}
+        content={t(($) => $.rejectContent, { ns: 'education' })}
+        onConfirm={() => setShowModal(false)}
+        onCancel={() => setShowModal(false)}
+      />
     </div>
   )
 }

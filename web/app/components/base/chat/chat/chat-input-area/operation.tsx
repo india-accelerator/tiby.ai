@@ -1,76 +1,80 @@
-import {
-  forwardRef,
-  memo,
-} from 'react'
-import {
-  RiMicLine,
-  RiSendPlane2Fill,
-} from '@remixicon/react'
-import type {
-  EnableType,
-} from '../../types'
+import type { FC, Ref } from 'react'
 import type { Theme } from '../../embedded-chatbot/theme/theme-context'
-import Button from '@/app/components/base/button'
+import type { EnableType } from '../../types'
+import type { FileUpload } from '@/app/components/base/features/types'
+import { Button } from '@langgenius/dify-ui/button'
+import { cn } from '@langgenius/dify-ui/cn'
+import { memo } from 'react'
+import { useTranslation } from 'react-i18next'
 import ActionButton from '@/app/components/base/action-button'
 import { FileUploaderInChatInput } from '@/app/components/base/file-uploader'
-import type { FileUpload } from '@/app/components/base/features/types'
-import cn from '@/utils/classnames'
 
 type OperationProps = {
+  readonly?: boolean
   fileConfig?: FileUpload
   speechToTextConfig?: EnableType
   onShowVoiceInput?: () => void
   onSend: () => void
+  sendButtonLabel?: string
+  sendButtonLoading?: boolean
+  disabled?: boolean
   theme?: Theme | null
+  ref?: Ref<HTMLDivElement>
 }
-const Operation = forwardRef<HTMLDivElement, OperationProps>(({
+const Operation: FC<OperationProps> = ({
+  readonly,
+  ref,
   fileConfig,
   speechToTextConfig,
   onShowVoiceInput,
   onSend,
+  sendButtonLabel,
+  sendButtonLoading,
+  disabled,
   theme,
-}, ref) => {
+}) => {
+  const { t } = useTranslation()
+
   return (
-    <div
-      className={cn(
-        'shrink-0 flex items-center justify-end',
-      )}
-    >
-      <div
-        className='flex items-center pl-1'
-        ref={ref}
-      >
-        <div className='flex items-center space-x-1'>
-          {fileConfig?.enabled && <FileUploaderInChatInput fileConfig={fileConfig} />}
-          {
-            speechToTextConfig?.enabled && (
-              <ActionButton
-                size='l'
-                onClick={onShowVoiceInput}
-              >
-                <RiMicLine className='w-5 h-5' />
-              </ActionButton>
-            )
-          }
+    <div className={cn('flex shrink-0 items-center justify-end')}>
+      <div className="flex items-center pl-1" ref={ref}>
+        <div className="flex items-center gap-1">
+          {fileConfig?.enabled && (
+            <FileUploaderInChatInput readonly={readonly} fileConfig={fileConfig} />
+          )}
+          {speechToTextConfig?.enabled && onShowVoiceInput && (
+            <ActionButton
+              className="shrink-0 outline-hidden focus-visible:inset-ring-2 focus-visible:inset-ring-state-accent-solid"
+              size="l"
+              aria-label={t(($) => $['voiceInput.start'], { ns: 'common' })}
+              disabled={readonly}
+              onClick={onShowVoiceInput}
+            >
+              <span className="i-ri-mic-line size-5" aria-hidden="true" />
+            </ActionButton>
+          )}
         </div>
         <Button
-          className='ml-3 px-0 w-8'
-          variant='primary'
+          aria-label={sendButtonLabel ? undefined : t(($) => $['operation.send'], { ns: 'common' })}
+          className={cn('ml-3 focus-visible:ring-inset', sendButtonLabel ? 'px-3' : 'w-8 px-0')}
+          variant="primary"
+          disabled={readonly || disabled}
+          loading={sendButtonLoading}
           onClick={onSend}
           style={
             theme
               ? {
-                backgroundColor: theme.primaryColor,
-              }
+                  backgroundColor: theme.primaryColor,
+                }
               : {}
           }
         >
-          <RiSendPlane2Fill className='w-4 h-4' />
+          {sendButtonLabel || <span className="i-ri-send-plane-2-fill size-4" aria-hidden="true" />}
         </Button>
       </div>
     </div>
   )
-})
+}
 Operation.displayName = 'Operation'
 
 export default memo(Operation)

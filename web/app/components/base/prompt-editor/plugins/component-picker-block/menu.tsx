@@ -19,7 +19,7 @@ export class PickerBlockMenuOption extends MenuOption {
       key: string
       group?: string
       onSelect?: () => void
-      render: (menuRenderProps: MenuOptionRenderProps) => JSX.Element
+      render: (menuRenderProps: MenuOptionRenderProps) => React.JSX.Element
     },
   ) {
     super(data.key)
@@ -27,5 +27,7 @@ export class PickerBlockMenuOption extends MenuOption {
   }
 
   public onSelectMenuOption = () => this.data.onSelect?.()
-  public renderMenuOption = (menuRenderProps: MenuOptionRenderProps) => <Fragment key={this.data.key}>{this.data.render(menuRenderProps)}</Fragment>
+  public renderMenuOption = (menuRenderProps: MenuOptionRenderProps) => (
+    <Fragment key={this.data.key}>{this.data.render(menuRenderProps)}</Fragment>
+  )
 }

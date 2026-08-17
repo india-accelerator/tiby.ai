@@ -1,17 +1,17 @@
 import json
+from typing import override
 
 from core.agent.cot_agent_runner import CotAgentRunner
-from core.file import file_manager
-from core.model_runtime.entities import (
+from graphon.file import file_manager
+from graphon.model_runtime.entities import (
     AssistantPromptMessage,
     PromptMessage,
-    PromptMessageContent,
     SystemPromptMessage,
     TextPromptMessageContent,
     UserPromptMessage,
 )
-from core.model_runtime.entities.message_entities import ImagePromptMessageContent
-from core.model_runtime.utils.encoders import jsonable_encoder
+from graphon.model_runtime.entities.message_entities import ImagePromptMessageContent, PromptMessageContentUnionTypes
+from graphon.model_runtime.utils.encoders import jsonable_encoder
 
 
 class CotChatAgentRunner(CotAgentRunner):
@@ -19,8 +19,8 @@ class CotChatAgentRunner(CotAgentRunner):
         """
         Organize system prompt
         """
-        if not self.app_config.agent:
-            raise ValueError("Agent configuration is not set")
+        assert self.app_config.agent
+        assert self.app_config.agent.prompt
 
         prompt_entity = self.app_config.agent.prompt
         if not prompt_entity:
@@ -40,9 +40,6 @@ class CotChatAgentRunner(CotAgentRunner):
         Organize user query
         """
         if self.files:
-            prompt_message_contents: list[PromptMessageContent] = []
-            prompt_message_contents.append(TextPromptMessageContent(data=query))
-
             # get image detail config
             image_detail_config = (
                 self.application_generate_entity.file_upload_config.image_config.detail
@@ -53,6 +50,8 @@ class CotChatAgentRunner(CotAgentRunner):
                 else None
             )
             image_detail_config = image_detail_config or ImagePromptMessageContent.DETAIL.LOW
+
+            prompt_message_contents: list[PromptMessageContentUnionTypes] = []
             for file in self.files:
                 prompt_message_contents.append(
                     file_manager.to_prompt_message_content(
@@ -60,6 +59,7 @@ class CotChatAgentRunner(CotAgentRunner):
                         image_detail_config=image_detail_config,
                     )
                 )
+            prompt_message_contents.append(TextPromptMessageContent(data=query))
 
             prompt_messages.append(UserPromptMessage(content=prompt_message_contents))
         else:
@@ -67,6 +67,7 @@ class CotChatAgentRunner(CotAgentRunner):
 
         return prompt_messages
 
+    @override
     def _organize_prompt_messages(self) -> list[PromptMessage]:
         """
         Organize
@@ -79,19 +80,18 @@ class CotChatAgentRunner(CotAgentRunner):
         if not agent_scratchpad:
             assistant_messages = []
         else:
-            assistant_message = AssistantPromptMessage(content="")
-            assistant_message.content = ""  # FIXME: type check tell mypy that assistant_message.content is str
+            content = ""
             for unit in agent_scratchpad:
                 if unit.is_final():
-                    assistant_message.content += f"Final Answer: {unit.agent_response}"
+                    content += f"Final Answer: {unit.agent_response}"
                 else:
-                    assistant_message.content += f"Thought: {unit.thought}\n\n"
+                    content += f"Thought: {unit.thought}\n\n"
                     if unit.action_str:
-                        assistant_message.content += f"Action: {unit.action_str}\n\n"
+                        content += f"Action: {unit.action_str}\n\n"
                     if unit.observation:
-                        assistant_message.content += f"Observation: {unit.observation}\n\n"
+                        content += f"Observation: {unit.observation}\n\n"
 
-            assistant_messages = [assistant_message]
+            assistant_messages = [AssistantPromptMessage(content=content)]
 
         # query messages
         query_messages = self._organize_user_query(self._query, [])

@@ -1,13 +1,23 @@
-import { useState } from 'react'
+import type { OffsetOptions } from '@floating-ui/react'
 import type { FC, ReactNode } from 'react'
-import { FloatingFocusManager, type OffsetOptions, autoUpdate, flip, offset, shift, useDismiss, useFloating, useHover, useInteractions, useRole } from '@floating-ui/react'
-import { RiDeleteBinLine } from '@remixicon/react'
-// @ts-expect-error no types available
-import lineClamp from 'line-clamp'
 import type { SliceProps } from './type'
-import { SliceContainer, SliceContent, SliceDivider, SliceLabel } from './shared'
-import classNames from '@/utils/classnames'
+import {
+  autoUpdate,
+  flip,
+  FloatingFocusManager,
+  offset,
+  shift,
+  useDismiss,
+  useFloating,
+  useHover,
+  useInteractions,
+  useRole,
+} from '@floating-ui/react'
+import { cn } from '@langgenius/dify-ui/cn'
+import { RiDeleteBinLine } from '@remixicon/react'
+import { useState } from 'react'
 import ActionButton, { ActionButtonState } from '@/app/components/base/action-button'
+import { SliceContainer, SliceContent, SliceDivider, SliceLabel } from './shared'
 
 type EditSliceProps = SliceProps<{
   label: ReactNode
@@ -40,11 +50,7 @@ export const EditSlice: FC<EditSliceProps> = (props) => {
     onOpenChange: setDelBtnShow,
     placement: 'right-start',
     whileElementsMounted: autoUpdate,
-    middleware: [
-      flip(),
-      shift(),
-      offset(offsetOptions),
-    ],
+    middleware: [flip(), shift(), offset(offsetOptions)],
   })
   const hover = useHover(context, {})
   const dismiss = useDismiss(context)
@@ -55,18 +61,15 @@ export const EditSlice: FC<EditSliceProps> = (props) => {
 
   return (
     <>
-      <SliceContainer {...rest}
-        className={classNames('block mr-0', className)}
-        ref={(ref) => {
-          refs.setReference(ref)
-          if (ref)
-            lineClamp(ref, 4)
-        }}
+      <SliceContainer
+        {...rest}
+        className={cn('mr-0 line-clamp-4 block', className)}
+        ref={refs.setReference}
         {...getReferenceProps()}
       >
         <SliceLabel
-          className={classNames(
-            isDestructive && '!bg-state-destructive-solid !text-text-primary-on-surface',
+          className={cn(
+            isDestructive && 'bg-state-destructive-solid! text-text-primary-on-surface!',
             labelClassName,
           )}
           labelInnerClassName={labelInnerClassName}
@@ -74,41 +77,36 @@ export const EditSlice: FC<EditSliceProps> = (props) => {
           {label}
         </SliceLabel>
         <SliceContent
-          className={classNames(
-            isDestructive && '!bg-state-destructive-hover-alt',
-            contentClassName,
-          )}
+          className={cn(isDestructive && 'bg-state-destructive-hover-alt!', contentClassName)}
         >
           {text}
         </SliceContent>
-        {showDivider && <SliceDivider
-          className={classNames(
-            isDestructive && '!bg-state-destructive-hover-alt',
-          )}
-        />}
-        {delBtnShow && <FloatingFocusManager
-          context={context}
-        >
-          <span
-            ref={refs.setFloating}
-            style={floatingStyles}
-            {...getFloatingProps()}
-            className='p-1 rounded-lg bg-components-actionbar-bg shadow inline-flex items-center justify-center'
-            onMouseEnter={() => setDelBtnHover(true)}
-            onMouseLeave={() => setDelBtnHover(false)}
-          >
-            <ActionButton
-              onClick={(e) => {
-                e.stopPropagation()
-                onDelete()
-                setDelBtnShow(false)
-              }}
-              state={ActionButtonState.Destructive}
+        {showDivider && (
+          <SliceDivider className={cn(isDestructive && 'bg-state-destructive-hover-alt!')} />
+        )}
+        {delBtnShow && (
+          <FloatingFocusManager context={context}>
+            <span
+              ref={refs.setFloating}
+              style={floatingStyles}
+              {...getFloatingProps()}
+              className="inline-flex items-center justify-center rounded-lg bg-components-actionbar-bg p-1 shadow"
+              onMouseEnter={() => setDelBtnHover(true)}
+              onMouseLeave={() => setDelBtnHover(false)}
             >
-              <RiDeleteBinLine className='w-4 h-4' />
-            </ActionButton>
-          </span>
-        </FloatingFocusManager>}
+              <ActionButton
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDelete()
+                  setDelBtnShow(false)
+                }}
+                state={ActionButtonState.Destructive}
+              >
+                <RiDeleteBinLine className="size-4" />
+              </ActionButton>
+            </span>
+          </FloatingFocusManager>
+        )}
       </SliceContainer>
     </>
   )

@@ -1,11 +1,13 @@
 'use client'
 import type { FC } from 'react'
-import React, { useState } from 'react'
+import { Button } from '@langgenius/dify-ui/button'
+import { Dialog, DialogContent, DialogTitle } from '@langgenius/dify-ui/dialog'
+import * as React from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import Modal from '@/app/components/base/modal'
-import Button from '@/app/components/base/button'
+import Input from '@/app/components/base/input'
 
-export type IRenameModalProps = {
+type IRenameModalProps = {
   isShow: boolean
   saveLoading: boolean
   name: string
@@ -13,34 +15,43 @@ export type IRenameModalProps = {
   onSave: (name: string) => void
 }
 
-const RenameModal: FC<IRenameModalProps> = ({
-  isShow,
-  saveLoading,
-  name,
-  onClose,
-  onSave,
-}) => {
+const RenameModal: FC<IRenameModalProps> = ({ isShow, saveLoading, name, onClose, onSave }) => {
   const { t } = useTranslation()
   const [tempName, setTempName] = useState(name)
+  const conversationNamePlaceholder =
+    t(($) => $['chat.conversationNamePlaceholder'], { ns: 'common' }) || ''
 
   return (
-    <Modal
-      title={t('common.chat.renameConversation')}
-      isShow={isShow}
-      onClose={onClose}
-    >
-      <div className={'mt-6 font-medium text-sm leading-[21px] text-gray-900'}>{t('common.chat.conversationName')}</div>
-      <input className={'mt-2 w-full rounded-lg h-10 box-border px-3 text-sm leading-10 bg-gray-100'}
-        value={tempName}
-        onChange={e => setTempName(e.target.value)}
-        placeholder={t('common.chat.conversationNamePlaceholder') || ''}
-      />
+    <Dialog open={isShow} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogTitle className="title-2xl-semi-bold text-text-primary">
+          {t(($) => $['chat.renameConversation'], { ns: 'common' })}
+        </DialogTitle>
+        <div className="mt-6 text-sm leading-[21px] font-medium text-text-primary">
+          {t(($) => $['chat.conversationName'], { ns: 'common' })}
+        </div>
+        <Input
+          className="mt-2 h-10 w-full"
+          value={tempName}
+          onChange={(e) => setTempName(e.target.value)}
+          placeholder={conversationNamePlaceholder}
+        />
 
-      <div className='mt-10 flex justify-end'>
-        <Button className='mr-2 flex-shrink-0' onClick={onClose}>{t('common.operation.cancel')}</Button>
-        <Button variant='primary' className='flex-shrink-0' onClick={() => onSave(tempName)} loading={saveLoading}>{t('common.operation.save')}</Button>
-      </div>
-    </Modal>
+        <div className="mt-10 flex justify-end">
+          <Button className="mr-2 shrink-0" onClick={onClose}>
+            {t(($) => $['operation.cancel'], { ns: 'common' })}
+          </Button>
+          <Button
+            variant="primary"
+            className="shrink-0"
+            onClick={() => onSave(tempName)}
+            loading={saveLoading}
+          >
+            {t(($) => $['operation.save'], { ns: 'common' })}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 export default React.memo(RenameModal)

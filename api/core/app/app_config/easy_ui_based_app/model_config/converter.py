@@ -4,9 +4,10 @@ from core.app.app_config.entities import EasyUIBasedAppConfig
 from core.app.entities.app_invoke_entities import ModelConfigWithCredentialsEntity
 from core.entities.model_entities import ModelStatus
 from core.errors.error import ModelCurrentlyNotSupportError, ProviderTokenNotInitError, QuotaExceededError
-from core.model_runtime.entities.model_entities import ModelType
-from core.model_runtime.model_providers.__base.large_language_model import LargeLanguageModel
-from core.provider_manager import ProviderManager
+from core.plugin.impl.model_runtime_factory import create_plugin_provider_manager
+from graphon.model_runtime.entities.llm_entities import LLMMode
+from graphon.model_runtime.entities.model_entities import ModelPropertyKey, ModelType
+from graphon.model_runtime.model_providers.base.large_language_model import LargeLanguageModel
 
 
 class ModelConfigConverter:
@@ -15,13 +16,12 @@ class ModelConfigConverter:
         """
         Convert app model config dict to entity.
         :param app_config: app config
-        :param skip_check: skip check
         :raises ProviderTokenNotInitError: provider token not init error
         :return: app orchestration config entity
         """
         model_config = app_config.model
 
-        provider_manager = ProviderManager()
+        provider_manager = create_plugin_provider_manager(tenant_id=app_config.tenant_id)
         provider_model_bundle = provider_manager.get_provider_model_bundle(
             tenant_id=app_config.tenant_id, provider=model_config.provider, model_type=ModelType.LLM
         )
@@ -63,14 +63,18 @@ class ModelConfigConverter:
             stop = completion_params["stop"]
             del completion_params["stop"]
 
+        model_schema = model_type_instance.get_model_schema(model_config.model, model_credentials)
+
         # get model mode
         model_mode = model_config.mode
         if not model_mode:
-            mode_enum = model_type_instance.get_model_mode(model=model_config.model, credentials=model_credentials)
-
-            model_mode = mode_enum.value
-
-        model_schema = model_type_instance.get_model_schema(model_config.model, model_credentials)
+            model_mode = LLMMode.CHAT
+            if model_schema and model_schema.model_properties.get(ModelPropertyKey.MODE):
+                try:
+                    model_mode = LLMMode(model_schema.model_properties[ModelPropertyKey.MODE])
+                except ValueError:
+                    # Fall back to CHAT mode if the stored value is invalid
+                    model_mode = LLMMode.CHAT
 
         if not model_schema:
             raise ValueError(f"Model {model_name} not exist.")

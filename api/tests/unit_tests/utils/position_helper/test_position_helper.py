@@ -1,3 +1,4 @@
+from pathlib import Path
 from textwrap import dedent
 
 import pytest
@@ -6,7 +7,7 @@ from core.helper.position_helper import get_position_map, is_filtered, pin_posit
 
 
 @pytest.fixture
-def prepare_example_positions_yaml(tmp_path, monkeypatch) -> str:
+def prepare_example_positions_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     monkeypatch.chdir(tmp_path)
     tmp_path.joinpath("example_positions.yaml").write_text(
         dedent(
@@ -25,7 +26,7 @@ def prepare_example_positions_yaml(tmp_path, monkeypatch) -> str:
 
 
 @pytest.fixture
-def prepare_empty_commented_positions_yaml(tmp_path, monkeypatch) -> str:
+def prepare_empty_commented_positions_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     monkeypatch.chdir(tmp_path)
     tmp_path.joinpath("example_positions_all_commented.yaml").write_text(
         dedent(
@@ -95,7 +96,7 @@ def test_included_position_data(prepare_example_positions_yaml):
     position_map = get_position_map(folder_path=prepare_example_positions_yaml, file_name="example_positions.yaml")
     pin_list = ["forth", "first"]
     include_set = {"forth", "first"}
-    exclude_set = {}
+    exclude_set = set()
 
     position_map = pin_position_map(original_position_map=position_map, pin_list=pin_list)
 

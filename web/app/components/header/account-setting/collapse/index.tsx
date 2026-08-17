@@ -1,6 +1,6 @@
-import { useState } from 'react'
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
-import classNames from '@/utils/classnames'
+import { cn } from '@langgenius/dify-ui/cn'
+import { useState } from 'react'
 
 export type IItem = {
   key: string
@@ -13,40 +13,45 @@ type ICollapse = {
   onSelect?: (item: IItem) => void
   wrapperClassName?: string
 }
-const Collapse = ({
-  title,
-  items,
-  renderItem,
-  onSelect,
-  wrapperClassName,
-}: ICollapse) => {
+const Collapse = ({ title, items, renderItem, onSelect, wrapperClassName }: ICollapse) => {
   const [open, setOpen] = useState(false)
 
   const toggle = () => setOpen(!open)
 
   return (
-    <div className={classNames('bg-background-section-burn rounded-xl', wrapperClassName)}>
-      <div className='flex items-center justify-between leading-[18px] px-3 py-2 text-xs font-medium text-text-secondary cursor-pointer' onClick={toggle}>
+    <div className={cn('overflow-hidden rounded-xl bg-background-section-burn', wrapperClassName)}>
+      <button
+        type="button"
+        className="flex w-full cursor-pointer items-center justify-between border-none bg-transparent px-3 py-2 text-left text-xs leading-[18px] font-medium text-text-secondary focus-visible:ring-1 focus-visible:ring-components-input-border-active focus-visible:outline-hidden"
+        onClick={toggle}
+      >
         {title}
-        {
-          open
-            ? <ChevronDownIcon className='w-3 h-3 text-components-button-tertiary-text' />
-            : <ChevronRightIcon className='w-3 h-3 text-components-button-tertiary-text' />
-        }
-      </div>
-      {
-        open && (
-          <div className='py-1 mb-1 mx-1 border-t border-divider-subtle rounded-lg bg-components-panel-on-panel-item-bg'>
-            {
-              items.map(item => (
-                <div key={item.key} onClick={() => onSelect && onSelect(item)}>
-                  {renderItem(item)}
-                </div>
-              ))
-            }
-          </div>
-        )
-      }
+        {open ? (
+          <ChevronDownIcon
+            className="size-3 text-components-button-tertiary-text"
+            aria-hidden="true"
+          />
+        ) : (
+          <ChevronRightIcon
+            className="size-3 text-components-button-tertiary-text"
+            aria-hidden="true"
+          />
+        )}
+      </button>
+      {open && (
+        <div className="mx-1 mb-1 rounded-lg border-t border-divider-subtle bg-components-panel-on-panel-item-bg py-1">
+          {items.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className="block w-full border-none bg-transparent p-0 text-left"
+              onClick={() => onSelect?.(item)}
+            >
+              {renderItem(item)}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

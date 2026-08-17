@@ -1,133 +1,107 @@
-import type { FC } from 'react'
-import { useMemo, useState } from 'react'
+import { Checkbox } from '@langgenius/dify-ui/checkbox'
+import { CheckboxGroup } from '@langgenius/dify-ui/checkbox-group'
+import { cn } from '@langgenius/dify-ui/cn'
+import { Popover, PopoverContent, PopoverTrigger } from '@langgenius/dify-ui/popover'
+import { useDebounceFn } from 'ahooks'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useContext } from 'use-context-selector'
-import { useDebounceFn, useMount } from 'ahooks'
-import { RiArrowDownSLine } from '@remixicon/react'
-import { useStore as useLabelStore } from './store'
-import cn from '@/utils/classnames'
-import {
-  PortalToFollowElem,
-  PortalToFollowElemContent,
-  PortalToFollowElemTrigger,
-} from '@/app/components/base/portal-to-follow-elem'
-import Input from '@/app/components/base/input'
 import { Tag03 } from '@/app/components/base/icons/src/vender/line/financeAndECommerce'
-import Checkbox from '@/app/components/base/checkbox'
-import type { Label } from '@/app/components/tools/labels/constant'
-import { fetchLabelList } from '@/service/tools'
-import I18n from '@/context/i18n'
-import { getLanguage } from '@/i18n/language'
+import Input from '@/app/components/base/input'
+import { useTags } from '@/app/components/plugins/hooks'
 
 type LabelSelectorProps = {
   value: string[]
   onChange: (v: string[]) => void
 }
-const LabelSelector: FC<LabelSelectorProps> = ({
-  value,
-  onChange,
-}) => {
+
+function LabelSelector({ value, onChange }: LabelSelectorProps) {
   const { t } = useTranslation()
-  const { locale } = useContext(I18n)
-  const language = getLanguage(locale)
   const [open, setOpen] = useState(false)
 
-  const labelList = useLabelStore(s => s.labelList)
-  const setLabelList = useLabelStore(s => s.setLabelList)
+  const { tags: labelList } = useTags()
 
   const [keywords, setKeywords] = useState('')
   const [searchKeywords, setSearchKeywords] = useState('')
-  const { run: handleSearch } = useDebounceFn(() => {
-    setSearchKeywords(keywords)
-  }, { wait: 500 })
+  const { run: handleSearch } = useDebounceFn(
+    () => {
+      setSearchKeywords(keywords)
+    },
+    { wait: 500 },
+  )
+
   const handleKeywordsChange = (value: string) => {
     setKeywords(value)
     handleSearch()
   }
 
-  const filteredLabelList = useMemo(() => {
-    return labelList.filter(label => label.name.includes(searchKeywords))
-  }, [labelList, searchKeywords])
-
-  const selectedLabels = useMemo(() => {
-    return value.map(v => labelList.find(l => l.name === v)?.label[language]).join(', ')
-  }, [value, labelList, language])
-
-  const selectLabel = (label: Label) => {
-    if (value.includes(label.name))
-      onChange(value.filter(v => v !== label.name))
-    else
-      onChange([...value, label.name])
-  }
-
-  useMount(() => {
-    fetchLabelList().then((res) => {
-      setLabelList(res)
-    })
-  })
+  const filteredLabelList = labelList.filter((label) => label.name.includes(searchKeywords))
+  const selectedLabels = value.map((v) => labelList.find((l) => l.name === v)?.label).join(', ')
 
   return (
-    <PortalToFollowElem
-      open={open}
-      onOpenChange={setOpen}
-      placement='bottom-start'
-      offset={4}
-    >
-      <div className='relative'>
-        <PortalToFollowElemTrigger
-          onClick={() => setOpen(v => !v)}
-          className='block'
+    <Popover open={open} onOpenChange={setOpen}>
+      <div className="relative">
+        <PopoverTrigger
+          className={cn(
+            'flex h-10 cursor-pointer items-center gap-1 rounded-lg border-[0.5px] border-transparent bg-components-input-bg-normal px-3 text-left hover:bg-components-input-bg-hover',
+            'data-popup-open:bg-components-input-bg-hover data-popup-open:hover:bg-components-input-bg-hover',
+          )}
         >
-          <div className={cn(
-            'flex items-center gap-1 px-3 h-10 rounded-lg border-[0.5px] border-transparent bg-gray-100 cursor-pointer hover:bg-gray-200',
-            open && '!bg-gray-200 hover:bg-gray-200',
-          )}>
-            <div title={value.length > 0 ? selectedLabels : ''} className={cn('grow text-[13px] leading-[18px] text-gray-700 truncate', !value.length && '!text-gray-400')}>
-              {!value.length && t('tools.createTool.toolInput.labelPlaceholder')}
-              {!!value.length && selectedLabels}
-            </div>
-            <div className='shrink-0 ml-1 text-gray-700 opacity-60'>
-              <RiArrowDownSLine className='h-4 w-4' />
-            </div>
+          <div
+            className={cn(
+              'grow truncate text-[13px] leading-4.5 text-text-secondary',
+              !value.length && 'text-text-quaternary!',
+            )}
+          >
+            {!value.length && t(($) => $['createTool.toolInput.labelPlaceholder'], { ns: 'tools' })}
+            {!!value.length && selectedLabels}
           </div>
-        </PortalToFollowElemTrigger>
-        <PortalToFollowElemContent className='z-[1040]'>
-          <div className='relative w-[591px] bg-white rounded-lg border-[0.5px] border-gray-200  shadow-lg'>
-            <div className='p-2 border-b-[0.5px] border-black/5'>
+          <div className="ml-1 shrink-0 text-text-secondary opacity-60">
+            <span className="i-ri-arrow-down-s-line size-4" />
+          </div>
+        </PopoverTrigger>
+        <PopoverContent
+          placement="bottom-start"
+          sideOffset={4}
+          popupClassName="border-none bg-transparent p-0 shadow-none backdrop-blur-none"
+        >
+          <div className="relative w-[591px] rounded-lg border-[0.5px] border-components-panel-border bg-components-panel-bg-blur shadow-lg backdrop-blur-[5px]">
+            <div className="border-b-[0.5px] border-divider-regular p-2">
               <Input
                 showLeftIcon
                 showClearIcon
                 value={keywords}
-                onChange={e => handleKeywordsChange(e.target.value)}
+                onChange={(e) => handleKeywordsChange(e.target.value)}
                 onClear={() => handleKeywordsChange('')}
               />
             </div>
-            <div className='p-1 max-h-[264px] overflow-y-auto'>
-              {filteredLabelList.map(label => (
-                <div
+            <CheckboxGroup
+              aria-label={t(($) => $['createTool.toolInput.labelPlaceholder'], { ns: 'tools' })}
+              value={value}
+              onValueChange={(nextValue) => onChange(nextValue)}
+              className="max-h-[264px] overflow-y-auto p-1"
+            >
+              {filteredLabelList.map((label) => (
+                <label
                   key={label.name}
-                  className='flex items-center gap-2 pl-3 py-[6px] pr-2 rounded-lg cursor-pointer hover:bg-gray-100'
-                  onClick={() => selectLabel(label)}
+                  className="flex cursor-pointer items-center gap-2 rounded-lg py-[6px] pr-2 pl-3 hover:bg-components-panel-on-panel-item-bg-hover"
                 >
-                  <Checkbox
-                    className='shrink-0'
-                    checked={value.includes(label.name)}
-                    onCheck={() => { }}
-                  />
-                  <div title={label.label[language]} className='grow text-sm text-gray-700 leading-5 truncate'>{label.label[language]}</div>
-                </div>
+                  <Checkbox className="shrink-0" value={label.name} />
+                  <div className="grow truncate text-sm/5 text-text-secondary">{label.label}</div>
+                </label>
               ))}
               {!filteredLabelList.length && (
-                <div className='p-3 flex flex-col items-center gap-1'>
-                  <Tag03 className='h-6 w-6 text-gray-300' />
-                  <div className='text-gray-500 text-xs leading-[14px]'>{t('common.tag.noTag')}</div>
+                <div className="flex flex-col items-center gap-1 p-3">
+                  <Tag03 className="size-6 text-text-quaternary" />
+                  <div className="text-xs leading-[14px] text-text-tertiary">
+                    {t(($) => $['tag.noTag'], { ns: 'common' })}
+                  </div>
                 </div>
               )}
-            </div>
+            </CheckboxGroup>
           </div>
-        </PortalToFollowElemContent>
+        </PopoverContent>
       </div>
-    </PortalToFollowElem>
+    </Popover>
   )
 }
 

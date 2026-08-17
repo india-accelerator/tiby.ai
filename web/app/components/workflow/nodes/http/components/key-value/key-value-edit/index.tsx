@@ -1,15 +1,16 @@
 'use client'
 import type { FC } from 'react'
-import React, { useCallback } from 'react'
-import produce from 'immer'
-import { useTranslation } from 'react-i18next'
 import type { KeyValue } from '../../../types'
+import { cn } from '@langgenius/dify-ui/cn'
+import { produce } from 'immer'
+import * as React from 'react'
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import KeyValueItem from './item'
-import cn from '@/utils/classnames'
 
-const i18nPrefix = 'workflow.nodes.http'
+const i18nPrefix = 'nodes.http'
 
-type Props = {
+type Props = Readonly<{
   readonly: boolean
   nodeId: string
   list: KeyValue[]
@@ -19,7 +20,7 @@ type Props = {
   // onSwitchToBulkEdit: () => void
   keyNotSupportVar?: boolean
   insertVarTipToLeft?: boolean
-}
+}>
 
 const KeyValueList: FC<Props> = ({
   readonly,
@@ -34,53 +35,78 @@ const KeyValueList: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
 
-  const handleChange = useCallback((index: number) => {
-    return (newItem: KeyValue) => {
-      const newList = produce(list, (draft: any) => {
-        draft[index] = newItem
-      })
-      onChange(newList)
-    }
-  }, [list, onChange])
+  const handleChange = useCallback(
+    (index: number) => {
+      return (newItem: KeyValue) => {
+        const newList = produce(list, (draft: any) => {
+          draft[index] = newItem
+        })
+        onChange(newList)
+      }
+    },
+    [list, onChange],
+  )
 
-  const handleRemove = useCallback((index: number) => {
-    return () => {
-      const newList = produce(list, (draft: any) => {
-        draft.splice(index, 1)
-      })
-      onChange(newList)
-    }
-  }, [list, onChange])
+  const handleRemove = useCallback(
+    (index: number) => {
+      return () => {
+        const newList = produce(list, (draft: any) => {
+          draft.splice(index, 1)
+        })
+        onChange(newList)
+      }
+    },
+    [list, onChange],
+  )
 
-  if (!Array.isArray(list))
-    return null
+  if (!Array.isArray(list)) return null
 
   return (
-    <div className='border border-divider-regular rounded-lg overflow-hidden'>
-      <div className={cn('flex items-center h-7 leading-7 text-text-tertiary system-xs-medium-uppercase')}>
-        <div className={cn('h-full pl-3 border-r border-divider-regular', isSupportFile ? 'w-[140px]' : 'w-1/2')}>{t(`${i18nPrefix}.key`)}</div>
-        {isSupportFile && <div className='shrink-0 w-[70px] h-full pl-3 border-r border-divider-regular'>{t(`${i18nPrefix}.type`)}</div>}
-        <div className={cn('h-full pl-3 pr-1 items-center justify-between', isSupportFile ? 'grow' : 'w-1/2')}>{t(`${i18nPrefix}.value`)}</div>
+    <div className="overflow-hidden rounded-lg border border-divider-regular">
+      <div
+        className={cn(
+          'flex h-7 items-center system-xs-medium-uppercase leading-7 text-text-tertiary',
+        )}
+      >
+        <div
+          className={cn(
+            'flex h-full items-center border-r border-divider-regular pl-3',
+            isSupportFile ? 'w-[140px]' : 'w-1/2',
+          )}
+        >
+          {t(($) => $[`${i18nPrefix}.key`], { ns: 'workflow' })}
+        </div>
+        {isSupportFile && (
+          <div className="flex h-full w-[70px] shrink-0 items-center border-r border-divider-regular pl-3">
+            {t(($) => $[`${i18nPrefix}.type`], { ns: 'workflow' })}
+          </div>
+        )}
+        <div
+          className={cn(
+            'flex h-full items-center justify-between pr-1 pl-3',
+            isSupportFile ? 'grow' : 'w-1/2',
+          )}
+        >
+          {t(($) => $[`${i18nPrefix}.value`], { ns: 'workflow' })}
+        </div>
       </div>
-      {
-        list.map((item, index) => (
-          <KeyValueItem
-            key={item.id}
-            instanceId={item.id!}
-            nodeId={nodeId}
-            payload={item}
-            onChange={handleChange(index)}
-            onRemove={handleRemove(index)}
-            isLastItem={index === list.length - 1}
-            onAdd={onAdd}
-            readonly={readonly}
-            canRemove={list.length > 1}
-            isSupportFile={isSupportFile}
-            keyNotSupportVar={keyNotSupportVar}
-            insertVarTipToLeft={insertVarTipToLeft}
-          />
-        ))
-      }
+      {list.map((item, index) => (
+        <KeyValueItem
+          key={item.id}
+          instanceId={item.id!}
+          nodeId={nodeId}
+          payload={item}
+          onChange={handleChange(index)}
+          onRemove={handleRemove(index)}
+          isLastItem={index === list.length - 1}
+          onAdd={onAdd}
+          readonly={readonly}
+          canRemove={list.length > 1}
+          isSupportFile={isSupportFile}
+          keyNotSupportVar={keyNotSupportVar}
+          insertVarTipToLeft={insertVarTipToLeft}
+        />
+      ))}
     </div>
   )
 }

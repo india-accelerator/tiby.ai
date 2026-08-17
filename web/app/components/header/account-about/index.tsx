@@ -1,87 +1,124 @@
 'use client'
-import { useTranslation } from 'react-i18next'
-import Link from 'next/link'
+import type { LangGeniusVersionInfo } from '@/context/app-context-types'
+import { Button } from '@langgenius/dify-ui/button'
+import { Dialog, DialogContent } from '@langgenius/dify-ui/dialog'
 import { RiCloseLine } from '@remixicon/react'
-import s from './index.module.css'
-import classNames from '@/utils/classnames'
-import Modal from '@/app/components/base/modal'
-import type { LangGeniusVersionResponse } from '@/models/common'
-import { IS_CE_EDITION } from '@/config'
-import LogoSite from '@/app/components/base/logo/logo-site'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import dayjs from 'dayjs'
+import { useTranslation } from 'react-i18next'
+import { DifyLogo } from '@/app/components/base/logo/dify-logo'
+import { systemFeaturesQueryOptions } from '@/features/system-features/client'
+import Link from '@/next/link'
 
 type IAccountSettingProps = {
-  langeniusVersionInfo: LangGeniusVersionResponse
+  langGeniusVersionInfo: LangGeniusVersionInfo
   onCancel: () => void
 }
-const buttonClassName = `
-shrink-0 flex items-center h-8 px-3 rounded-lg border border-gray-200
-text-xs text-gray-800 font-medium
-`
-export default function AccountAbout({
-  langeniusVersionInfo,
-  onCancel,
-}: IAccountSettingProps) {
+
+export default function AccountAbout({ langGeniusVersionInfo, onCancel }: IAccountSettingProps) {
   const { t } = useTranslation()
-  const isLatest = langeniusVersionInfo.current_version === langeniusVersionInfo.latest_version
+  const isLatest = langGeniusVersionInfo.current_version === langGeniusVersionInfo.latest_version
+  const { data: systemFeatures } = useSuspenseQuery(systemFeaturesQueryOptions())
+  const isNonCloudEdition =
+    systemFeatures.deployment_edition === 'COMMUNITY' ||
+    systemFeatures.deployment_edition === 'ENTERPRISE'
 
   return (
-    <Modal
-      isShow
-      onClose={() => { }}
-      className={s.modal}
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onCancel()
+      }}
     >
-      <div className='relative pt-4'>
-        <div className='absolute -top-2 -right-4 flex justify-center items-center w-8 h-8 cursor-pointer' onClick={onCancel}>
-          <RiCloseLine className='w-4 h-4 text-gray-500' />
-        </div>
-        <div>
-          <LogoSite className='mx-auto mb-2' />
-          <div className='mb-3 text-center text-xs font-normal text-gray-500'>Version {langeniusVersionInfo?.current_version}</div>
-          <div className='mb-4 text-center text-xs font-normal text-gray-700'>
+      <DialogContent className="w-[calc(100vw-2rem)]! max-w-[480px]! overflow-hidden! border-none px-6! py-4! text-left align-middle">
+        <div className="relative">
+          <button
+            type="button"
+            className="absolute top-0 right-0 flex size-8 cursor-pointer items-center justify-center border-none bg-transparent p-0 focus-visible:ring-1 focus-visible:ring-components-input-border-active focus-visible:outline-hidden"
+            aria-label={t(($) => $['operation.close'], { ns: 'common' })}
+            onClick={onCancel}
+          >
+            <RiCloseLine className="size-4 text-text-tertiary" aria-hidden="true" />
+          </button>
+          <div className="flex flex-col items-center gap-4 py-8">
+            {systemFeatures.branding.enabled && systemFeatures.branding.workspace_logo ? (
+              <img
+                src={systemFeatures.branding.workspace_logo}
+                className="block h-7 w-auto object-contain"
+                alt="logo"
+              />
+            ) : (
+              <DifyLogo alt="Tiby" size="large" className="mx-auto" />
+            )}
 
-            <div className='text-[#1C64F2]'>
-              {
-                IS_CE_EDITION
-                  ? <Link href={'https://github.com/langgenius/dify/blob/main/LICENSE'} target='_blank' rel='noopener noreferrer'>Open Source License</Link>
-                  : <>
-                    <Link href='https://dify.ai/privacy' target='_blank' rel='noopener noreferrer'>Privacy Policy</Link>,<span> </span>
-                    <Link href='https://dify.ai/terms' target='_blank' rel='noopener noreferrer'>Terms of Service</Link>
+            <div className="text-center text-xs font-normal text-text-tertiary">
+              Version
+              {langGeniusVersionInfo?.current_version}
+            </div>
+            <div className="flex flex-col items-center gap-2 text-center text-xs font-normal text-text-secondary">
+              <div>©{dayjs().year()} LangGenius, Inc., Contributors.</div>
+              <div className="text-text-accent">
+                {isNonCloudEdition && (
+                  <Link
+                    href="https://github.com/langgenius/dify/blob/main/LICENSE"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open Source License
+                  </Link>
+                )}
+                {systemFeatures.deployment_edition === 'CLOUD' && (
+                  <>
+                    <Link href="https://dify.ai/privacy" target="_blank" rel="noopener noreferrer">
+                      Privacy Policy
+                    </Link>
+                    ,&nbsp;
+                    <Link href="https://dify.ai/terms" target="_blank" rel="noopener noreferrer">
+                      Terms of Service
+                    </Link>
                   </>
-              }
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="-mx-6 mb-4 h-[0.5px] bg-divider-regular" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 text-xs font-medium text-text-tertiary">
+              {isLatest
+                ? t(($) => $['about.latestAvailable'], {
+                    ns: 'common',
+                    version: langGeniusVersionInfo.latest_version,
+                  })
+                : t(($) => $['about.nowAvailable'], {
+                    ns: 'common',
+                    version: langGeniusVersionInfo.latest_version,
+                  })}
+            </div>
+            <div className="flex shrink-0 items-center">
+              <Button className="mr-2" size="small">
+                <Link
+                  href="https://github.com/langgenius/dify/releases"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {t(($) => $['about.changeLog'], { ns: 'common' })}
+                </Link>
+              </Button>
+              {!isLatest && systemFeatures.deployment_edition === 'CLOUD' && (
+                <Button variant="primary" size="small">
+                  <Link
+                    href={langGeniusVersionInfo.release_notes}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {t(($) => $['about.updateNow'], { ns: 'common' })}
+                  </Link>
+                </Button>
+              )}
             </div>
           </div>
         </div>
-        <div className='mb-4 -mx-8 h-[0.5px] bg-gray-200' />
-        <div className='flex justify-between items-center'>
-          <div className='text-xs font-medium text-gray-800'>
-            {
-              isLatest
-                ? t('common.about.latestAvailable', { version: langeniusVersionInfo.latest_version })
-                : t('common.about.nowAvailable', { version: langeniusVersionInfo.latest_version })
-            }
-          </div>
-          <div className='flex items-center'>
-            <Link
-              className={classNames(buttonClassName, 'mr-2')}
-              href={'https://github.com/langgenius/dify/releases'}
-              target='_blank' rel='noopener noreferrer'
-            >
-              {t('common.about.changeLog')}
-            </Link>
-            {
-              !isLatest && !IS_CE_EDITION && (
-                <Link
-                  className={classNames(buttonClassName, 'text-primary-600')}
-                  href={langeniusVersionInfo.release_notes}
-                  target='_blank' rel='noopener noreferrer'
-                >
-                  {t('common.about.updateNow')}
-                </Link>
-              )
-            }
-          </div>
-        </div>
-      </div>
-    </Modal>
+      </DialogContent>
+    </Dialog>
   )
 }

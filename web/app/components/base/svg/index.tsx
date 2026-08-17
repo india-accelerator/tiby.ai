@@ -1,4 +1,6 @@
-import React from 'react'
+import { cn } from '@langgenius/dify-ui/cn'
+import * as React from 'react'
+import ActionButton from '../action-button'
 import s from './style.module.css'
 
 type ISVGBtnProps = {
@@ -6,17 +8,15 @@ type ISVGBtnProps = {
   setIsSVG: React.Dispatch<React.SetStateAction<boolean>>
 }
 
-const SVGBtn = ({
-  isSVG,
-  setIsSVG,
-}: ISVGBtnProps) => {
+const SVGBtn = ({ isSVG, setIsSVG }: ISVGBtnProps) => {
   return (
-    <div
-      className={'box-border p-0.5 flex items-center justify-center rounded-md bg-white cursor-pointer'}
-      onClick={() => { setIsSVG(prevIsSVG => !prevIsSVG) }}
+    <ActionButton
+      onClick={() => {
+        setIsSVG((prevIsSVG) => !prevIsSVG)
+      }}
     >
-      <div className={`w-6 h-6 rounded-md hover:bg-gray-50 ${s.svgIcon} ${isSVG ? s.svgIconed : ''}`}></div>
-    </div>
+      <div className={cn('size-4', isSVG ? s.svgIconed : s.svgIcon)}></div>
+    </ActionButton>
   )
 }
 

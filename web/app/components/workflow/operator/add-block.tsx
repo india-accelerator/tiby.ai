@@ -1,92 +1,109 @@
-import {
-  memo,
-  useCallback,
-  useState,
-} from 'react'
-import { RiAddCircleFill } from '@remixicon/react'
-import { useStoreApi } from 'reactflow'
+import type { ReactElement } from 'react'
+import type { BlockSelectorProps } from '@/app/components/workflow/block-selector'
+import type { Node, OnSelectBlock } from '@/app/components/workflow/types'
+import { Button } from '@langgenius/dify-ui/button'
+import { cn } from '@langgenius/dify-ui/cn'
+import { memo, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { OffsetOptions } from '@floating-ui/react'
+import { useStoreApi } from 'reactflow'
+import BlockSelector from '@/app/components/workflow/block-selector'
+import { BlockEnum } from '@/app/components/workflow/types'
+import { FlowType } from '@/types/common'
+import { useHooksStore } from '../hooks-store'
+import { useAvailableBlocks } from '../hooks/use-available-blocks'
+import { useNodesMetaData } from '../hooks/use-nodes-meta-data'
+import { usePanelInteractions } from '../hooks/use-panel-interactions'
+import { useIsChatMode, useNodesReadOnly } from '../hooks/use-workflow'
+import { useWorkflowStore } from '../store'
 import {
   generateNewNode,
+  getNodeCustomTypeByNodeDataType,
+  getNodesWithSameDefaultDataType,
 } from '../utils'
-import {
-  useAvailableBlocks,
-  useNodesReadOnly,
-  usePanelInteractions,
-} from '../hooks'
-import { NODES_INITIAL_DATA } from '../constants'
-import { useWorkflowStore } from '../store'
-import TipPopup from './tip-popup'
-import cn from '@/utils/classnames'
-import BlockSelector from '@/app/components/workflow/block-selector'
-import type {
-  OnSelectBlock,
-} from '@/app/components/workflow/types'
-import {
-  BlockEnum,
-} from '@/app/components/workflow/types'
 
 type AddBlockProps = {
-  renderTrigger?: (open: boolean) => React.ReactNode
-  offset?: OffsetOptions
+  renderTrigger?: (open: boolean) => ReactElement
+  sideOffset?: BlockSelectorProps['sideOffset']
+  alignOffset?: BlockSelectorProps['alignOffset']
+  onClose?: () => void
+  isolateKeyboardEvents?: boolean
 }
 const AddBlock = ({
   renderTrigger,
-  offset,
+  sideOffset,
+  alignOffset,
+  onClose,
+  isolateKeyboardEvents,
 }: AddBlockProps) => {
   const { t } = useTranslation()
   const store = useStoreApi()
   const workflowStore = useWorkflowStore()
+  const isChatMode = useIsChatMode()
   const { nodesReadOnly } = useNodesReadOnly()
   const { handlePaneContextmenuCancel } = usePanelInteractions()
   const [open, setOpen] = useState(false)
   const { availableNextBlocks } = useAvailableBlocks(BlockEnum.Start, false)
+  const { nodesMap: nodesMetaDataMap } = useNodesMetaData()
+  const flowType = useHooksStore((s) => s.configsMap?.flowType)
+  const showStartTab = flowType !== FlowType.ragPipeline && !isChatMode
 
-  const handleOpenChange = useCallback((open: boolean) => {
-    setOpen(open)
-    if (!open)
-      handlePaneContextmenuCancel()
-  }, [handlePaneContextmenuCancel])
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      setOpen(open)
+      if (!open) (onClose ?? handlePaneContextmenuCancel)()
+    },
+    [handlePaneContextmenuCancel, onClose],
+  )
 
-  const handleSelect = useCallback<OnSelectBlock>((type, toolDefaultValue) => {
-    const {
-      getNodes,
-    } = store.getState()
-    const nodes = getNodes()
-    const nodesWithSameType = nodes.filter(node => node.data.type === type)
-    const { newNode } = generateNewNode({
-      data: {
-        ...NODES_INITIAL_DATA[type],
-        title: nodesWithSameType.length > 0 ? `${t(`workflow.blocks.${type}`)} ${nodesWithSameType.length + 1}` : t(`workflow.blocks.${type}`),
-        ...(toolDefaultValue || {}),
-        _isCandidate: true,
-      },
-      position: {
-        x: 0,
-        y: 0,
-      },
-    })
-    workflowStore.setState({
-      candidateNode: newNode,
-    })
-  }, [store, workflowStore, t])
+  const handleSelect = useCallback<OnSelectBlock>(
+    (type, pluginDefaultValue) => {
+      const { getNodes } = store.getState()
+      const { defaultValue } = nodesMetaDataMap![type]
+      const nodes = getNodes()
+      const nodesWithSameType = getNodesWithSameDefaultDataType(nodes, type, defaultValue)
+      const { newNode } = generateNewNode({
+        type: getNodeCustomTypeByNodeDataType(type),
+        data: {
+          ...(defaultValue as Node['data']),
+          title:
+            nodesWithSameType.length > 0
+              ? `${defaultValue.title} ${nodesWithSameType.length + 1}`
+              : defaultValue.title,
+          ...pluginDefaultValue,
+          _isCandidate: true,
+        },
+        position: {
+          x: 0,
+          y: 0,
+        },
+      })
+      workflowStore.setState({
+        candidateNode: newNode,
+      })
+    },
+    [store, workflowStore, nodesMetaDataMap],
+  )
 
-  const renderTriggerElement = useCallback((open: boolean) => {
-    return (
-      <TipPopup
-        title={t('workflow.common.addBlock')}
-      >
-        <div className={cn(
-          'flex items-center justify-center w-8 h-8 rounded-lg text-text-tertiary hover:bg-state-base-hover hover:text-text-secondary cursor-pointer',
-          `${nodesReadOnly && 'cursor-not-allowed text-text-disabled hover:bg-transparent hover:text-text-disabled'}`,
-          open && 'bg-state-accent-active text-text-accent',
-        )}>
-          <RiAddCircleFill className='w-4 h-4' />
-        </div>
-      </TipPopup>
-    )
-  }, [nodesReadOnly, t])
+  const renderTriggerElement = useCallback(
+    (open: boolean) => {
+      return (
+        <Button
+          variant="ghost"
+          size="small"
+          disabled={nodesReadOnly}
+          focusableWhenDisabled
+          className={cn(
+            'size-8 p-0 text-text-tertiary hover:text-text-secondary',
+            nodesReadOnly && 'text-text-disabled hover:bg-transparent hover:text-text-disabled',
+            open && 'bg-state-accent-active text-text-accent',
+          )}
+        >
+          <span aria-hidden className="i-ri-add-circle-fill size-4" />
+        </Button>
+      )
+    },
+    [nodesReadOnly],
+  )
 
   return (
     <BlockSelector
@@ -94,14 +111,16 @@ const AddBlock = ({
       onOpenChange={handleOpenChange}
       disabled={nodesReadOnly}
       onSelect={handleSelect}
-      placement='top-start'
-      offset={offset ?? {
-        mainAxis: 4,
-        crossAxis: -8,
-      }}
+      placement="right-start"
+      sideOffset={sideOffset ?? 4}
+      alignOffset={alignOffset ?? -8}
       trigger={renderTrigger || renderTriggerElement}
-      popupClassName='!min-w-[256px]'
+      triggerAriaLabel={t(($) => $['common.addBlock'], { ns: 'workflow' })}
+      triggerTooltip={t(($) => $['common.addBlock'], { ns: 'workflow' })}
+      popupClassName="min-w-[256px]!"
       availableBlocksTypes={availableNextBlocks}
+      showStartTab={showStartTab}
+      isolateKeyboardEvents={isolateKeyboardEvents}
     />
   )
 }

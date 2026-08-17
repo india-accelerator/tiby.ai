@@ -1,36 +1,36 @@
 'use client'
 import type { FC } from 'react'
-import React, { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { useBoolean } from 'ahooks'
-import produce from 'immer'
-import { useContext } from 'use-context-selector'
-import ConfirmAddVar from './confirm-add-var'
-import s from './style.module.css'
-import PromptEditorHeightResizeWrap from './prompt-editor-height-resize-wrap'
-import cn from '@/utils/classnames'
-import { type PromptVariable } from '@/models/debug'
-import Tooltip from '@/app/components/base/tooltip'
-import type { CompletionParams } from '@/types/app'
-import { AppType } from '@/types/app'
-import { getNewVar, getVars } from '@/utils/var'
-import AutomaticBtn from '@/app/components/app/configuration/config/automatic/automatic-btn'
-import type { AutomaticRes } from '@/service/debug'
-import GetAutomaticResModal from '@/app/components/app/configuration/config/automatic/get-automatic-res'
-import PromptEditor from '@/app/components/base/prompt-editor'
-import ConfigContext from '@/context/debug-configuration'
-import { useModalContext } from '@/context/modal-context'
 import type { ExternalDataTool } from '@/models/common'
-import { useToastContext } from '@/app/components/base/toast'
-import { useEventEmitterContextContext } from '@/context/event-emitter'
+import type { PromptVariable } from '@/models/debug'
+import type { GenRes } from '@/service/debug'
+import { cn } from '@langgenius/dify-ui/cn'
+import { toast } from '@langgenius/dify-ui/toast'
+import { useBoolean } from 'ahooks'
+import { noop } from 'es-toolkit/function'
+import { produce } from 'immer'
+import * as React from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useContext } from 'use-context-selector'
 import { ADD_EXTERNAL_DATA_TOOL } from '@/app/components/app/configuration/config-var'
-import { INSERT_VARIABLE_VALUE_BLOCK_COMMAND } from '@/app/components/base/prompt-editor/plugins/variable-block'
-import { PROMPT_EDITOR_UPDATE_VALUE_BY_EVENT_EMITTER } from '@/app/components/base/prompt-editor/plugins/update-block'
-import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
+import AutomaticBtn from '@/app/components/app/configuration/config/automatic/automatic-btn'
+import GetAutomaticResModal from '@/app/components/app/configuration/config/automatic/get-automatic-res'
 import { useFeaturesStore } from '@/app/components/base/features/hooks'
+import { Infotip } from '@/app/components/base/infotip'
+import PromptEditor from '@/app/components/base/prompt-editor'
+import { PROMPT_EDITOR_UPDATE_VALUE_BY_EVENT_EMITTER } from '@/app/components/base/prompt-editor/plugins/update-block'
+import { INSERT_VARIABLE_VALUE_BLOCK_COMMAND } from '@/app/components/base/prompt-editor/plugins/variable-block'
+import ConfigContext from '@/context/debug-configuration'
+import { useEventEmitterContextContext } from '@/context/event-emitter'
+import { useModalContext } from '@/context/modal-context'
+import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
+import { AppModeEnum } from '@/types/app'
+import { getNewVar, getVars } from '@/utils/var'
+import ConfirmAddVar from './confirm-add-var'
+import PromptEditorHeightResizeWrap from './prompt-editor-height-resize-wrap'
 
-export type ISimplePromptInput = {
-  mode: AppType
+type ISimplePromptInput = {
+  mode: AppModeEnum
   promptTemplate: string
   promptVariables: PromptVariable[]
   readonly?: boolean
@@ -48,7 +48,6 @@ const Prompt: FC<ISimplePromptInput> = ({
   readonly = false,
   onChange,
   noTitle,
-  gradientBorder,
   editorHeight: initEditorHeight,
   noResize,
 }) => {
@@ -56,15 +55,12 @@ const Prompt: FC<ISimplePromptInput> = ({
   const media = useBreakpoints()
   const isMobile = media === MediaType.mobile
   const featuresStore = useFeaturesStore()
-  const {
-    features,
-    setFeatures,
-  } = featuresStore!.getState()
+  const { features, setFeatures } = featuresStore!.getState()
 
   const { eventEmitter } = useEventEmitterContextContext()
   const {
+    appId,
     modelConfig,
-    completionParams,
     dataSets,
     setModelConfig,
     setPrevPromptConfig,
@@ -73,12 +69,12 @@ const Prompt: FC<ISimplePromptInput> = ({
     showSelectDataSet,
     externalDataToolsConfig,
   } = useContext(ConfigContext)
-  const { notify } = useToastContext()
   const { setShowExternalDataToolModal } = useModalContext()
   const handleOpenExternalDataToolModal = () => {
     setShowExternalDataToolModal({
       payload: {},
-      onSaveCallback: (newExternalDataTool: ExternalDataTool) => {
+      onSaveCallback: (newExternalDataTool?: ExternalDataTool) => {
+        if (!newExternalDataTool) return
         eventEmitter?.emit({
           type: ADD_EXTERNAL_DATA_TOOL,
           payload: newExternalDataTool,
@@ -90,8 +86,13 @@ const Prompt: FC<ISimplePromptInput> = ({
       },
       onValidateBeforeSaveCallback: (newExternalDataTool: ExternalDataTool) => {
         for (let i = 0; i < promptVariables.length; i++) {
-          if (promptVariables[i].key === newExternalDataTool.variable) {
-            notify({ type: 'error', message: t('appDebug.varKeyError.keyAlreadyExists', { key: promptVariables[i].key }) })
+          if (promptVariables[i]!.key === newExternalDataTool.variable) {
+            toast.error(
+              t(($) => $['varKeyError.keyAlreadyExists'], {
+                ns: 'appDebug',
+                key: promptVariables[i]!.key,
+              }),
+            )
             return false
           }
         }
@@ -100,20 +101,40 @@ const Prompt: FC<ISimplePromptInput> = ({
       },
     })
   }
-  const promptVariablesObj = (() => {
-    const obj: Record<string, boolean> = {}
-    promptVariables.forEach((item) => {
-      obj[item.key] = true
-    })
-    return obj
-  })()
 
-  const [newPromptVariables, setNewPromptVariables] = React.useState<PromptVariable[]>(promptVariables)
+  const [newPromptVariables, setNewPromptVariables] =
+    React.useState<PromptVariable[]>(promptVariables)
   const [newTemplates, setNewTemplates] = React.useState('')
-  const [isShowConfirmAddVar, { setTrue: showConfirmAddVar, setFalse: hideConfirmAddVar }] = useBoolean(false)
+  const [isShowConfirmAddVar, { setTrue: showConfirmAddVar, setFalse: hideConfirmAddVar }] =
+    useBoolean(false)
 
   const handleChange = (newTemplates: string, keys: string[]) => {
-    const newPromptVariables = keys.filter(key => !(key in promptVariablesObj) && !externalDataToolsConfig.find(item => item.variable === key)).map(key => getNewVar(key, ''))
+    // Filter out keys that are not properly defined (either not exist or exist but without valid name)
+    const newPromptVariables = keys
+      .filter((key) => {
+        // Check if key exists in external data tools
+        if (externalDataToolsConfig.find((item: ExternalDataTool) => item.variable === key))
+          return false
+
+        // Check if key exists in prompt variables
+        const existingVar = promptVariables.find((item: PromptVariable) => item.key === key)
+        if (!existingVar) {
+          // Variable doesn't exist at all
+          return true
+        }
+
+        // Variable exists but check if it has valid name and key
+        return (
+          !existingVar.name ||
+          !existingVar.name.trim() ||
+          !existingVar.key ||
+          !existingVar.key.trim()
+        )
+
+        return false
+      })
+      .map((key) => getNewVar(key, ''))
+
     if (newPromptVariables.length > 0) {
       setNewPromptVariables(newPromptVariables)
       setNewTemplates(newTemplates)
@@ -130,22 +151,28 @@ const Prompt: FC<ISimplePromptInput> = ({
     }
   }
 
-  const [showAutomatic, { setTrue: showAutomaticTrue, setFalse: showAutomaticFalse }] = useBoolean(false)
-  const handleAutomaticRes = (res: AutomaticRes) => {
+  const [showAutomatic, { setTrue: showAutomaticTrue, setFalse: showAutomaticFalse }] =
+    useBoolean(false)
+  const handleAutomaticRes = (res: GenRes) => {
     // put eventEmitter in first place to prevent overwrite the configs.prompt_variables.But another problem is that prompt won't hight the prompt_variables.
     eventEmitter?.emit({
       type: PROMPT_EDITOR_UPDATE_VALUE_BY_EVENT_EMITTER,
-      payload: res.prompt,
+      payload: res.modified,
     } as any)
     const newModelConfig = produce(modelConfig, (draft) => {
-      draft.configs.prompt_template = res.prompt
-      draft.configs.prompt_variables = res.variables.map(key => ({ key, name: key, type: 'string', required: true }))
+      draft.configs.prompt_template = res.modified
+      draft.configs.prompt_variables = (res.variables || []).map((key) => ({
+        key,
+        name: key,
+        type: 'string',
+        required: true,
+      }))
     })
     setModelConfig(newModelConfig)
     setPrevPromptConfig(modelConfig.configs)
 
-    if (mode !== AppType.completion) {
-      setIntroduction(res.opening_statement)
+    if (mode !== AppModeEnum.COMPLETION) {
+      setIntroduction(res.opening_statement || '')
       const newFeatures = produce(features, (draft) => {
         draft.opening = {
           ...draft.opening,
@@ -161,50 +188,58 @@ const Prompt: FC<ISimplePromptInput> = ({
   const [editorHeight, setEditorHeight] = useState(minHeight)
 
   return (
-    <div className={cn((!readonly || gradientBorder) ? `${s.gradientBorder}` : 'bg-gray-50', ' relative shadow-md')}>
-      <div className='rounded-xl bg-[#EEF4FF]'>
+    <div
+      className={cn(
+        'relative rounded-xl bg-linear-to-r from-components-input-border-active-prompt-1 to-components-input-border-active-prompt-2 p-0.5 shadow-xs',
+      )}
+    >
+      <div className="rounded-xl bg-background-section-burn">
         {!noTitle && (
-          <div className="flex justify-between items-center h-11 pl-3 pr-6">
+          <div className="flex h-11 items-center justify-between pr-2.5 pl-3">
             <div className="flex items-center space-x-1">
-              <div className='h2'>{mode !== AppType.completion ? t('appDebug.chatSubTitle') : t('appDebug.completionSubTitle')}</div>
+              <div className="system-sm-semibold-uppercase text-text-secondary">
+                {mode !== AppModeEnum.COMPLETION
+                  ? t(($) => $.chatSubTitle, { ns: 'appDebug' })
+                  : t(($) => $.completionSubTitle, { ns: 'appDebug' })}
+              </div>
               {!readonly && (
-                <Tooltip
-                  popupContent={
-                    <div className='w-[180px]'>
-                      {t('appDebug.promptTip')}
-                    </div>
-                  }
-                />
+                <Infotip
+                  aria-label={t(($) => $.promptTip, { ns: 'appDebug' })}
+                  className="ml-1"
+                  popupClassName="w-[180px]"
+                >
+                  {t(($) => $.promptTip, { ns: 'appDebug' })}
+                </Infotip>
               )}
             </div>
-            <div className='flex items-center'>
-              {!readonly && !isMobile && (
-                <AutomaticBtn onClick={showAutomaticTrue} />
-              )}
+            <div className="flex items-center">
+              {!readonly && !isMobile && <AutomaticBtn onClick={showAutomaticTrue} />}
             </div>
           </div>
         )}
 
         <PromptEditorHeightResizeWrap
-          className='px-4 pt-2 min-h-[228px] bg-white rounded-t-xl text-sm text-gray-700'
+          className="min-h-[228px] rounded-t-xl bg-background-default px-4 pt-2 text-sm text-text-secondary"
           height={editorHeight}
           minHeight={minHeight}
           onHeightChange={setEditorHeight}
           hideResize={noResize}
-          footer={(
-            <div className='pl-4 pb-2 flex bg-white rounded-b-xl'>
-              <div className="h-[18px] leading-[18px] px-1 rounded-md bg-gray-100 text-xs text-gray-500">{promptTemplate.length}</div>
+          footer={
+            <div className="flex rounded-b-xl bg-background-default pb-2 pl-4">
+              <div className="h-[18px] rounded-md bg-components-badge-bg-gray-soft px-1 text-xs leading-[18px] text-text-tertiary">
+                {promptTemplate.length}
+              </div>
             </div>
-          )}
+          }
         >
           <PromptEditor
-            className='min-h-[210px]'
+            className="min-h-[210px]"
             compact
             value={promptTemplate}
             contextBlock={{
               show: false,
               selectable: !hasSetBlockStatus.context,
-              datasets: dataSets.map(item => ({
+              datasets: dataSets.map((item) => ({
                 id: item.id,
                 name: item.name,
                 type: item.data_source_type,
@@ -213,19 +248,30 @@ const Prompt: FC<ISimplePromptInput> = ({
             }}
             variableBlock={{
               show: true,
-              variables: modelConfig.configs.prompt_variables.filter(item => item.type !== 'api').map(item => ({
-                name: item.name,
-                value: item.key,
-              })),
+              variables: modelConfig.configs.prompt_variables
+                .filter(
+                  (item: PromptVariable) =>
+                    item.type !== 'api' &&
+                    item.key &&
+                    item.key.trim() &&
+                    item.name &&
+                    item.name.trim(),
+                )
+                .map((item: PromptVariable) => ({
+                  name: item.name,
+                  value: item.key,
+                })),
             }}
             externalToolBlock={{
               show: true,
-              externalTools: modelConfig.configs.prompt_variables.filter(item => item.type === 'api').map(item => ({
-                name: item.name,
-                variableName: item.key,
-                icon: item.icon,
-                icon_background: item.icon_background,
-              })),
+              externalTools: modelConfig.configs.prompt_variables
+                .filter((item: PromptVariable) => item.type === 'api')
+                .map((item: PromptVariable) => ({
+                  name: item.name,
+                  variableName: item.key,
+                  icon: item.icon,
+                  icon_background: item.icon_background,
+                })),
               onAddExternalTool: handleOpenExternalDataToolModal,
             }}
             historyBlock={{
@@ -235,14 +281,14 @@ const Prompt: FC<ISimplePromptInput> = ({
                 user: '',
                 assistant: '',
               },
-              onEditRole: () => { },
+              onEditRole: noop,
             }}
             queryBlock={{
               show: false,
               selectable: !hasSetBlockStatus.query,
             }}
             onChange={(value) => {
-              handleChange?.(value, [])
+              if (handleChange) handleChange(value, [])
             }}
             onBlur={() => {
               handleChange(promptTemplate, getVars(promptTemplate))
@@ -254,7 +300,7 @@ const Prompt: FC<ISimplePromptInput> = ({
 
       {isShowConfirmAddVar && (
         <ConfirmAddVar
-          varNameArr={newPromptVariables.map(v => v.name)}
+          varNameArr={newPromptVariables.map((v) => v.name)}
           onConfirm={handleAutoAdd(true)}
           onCancel={handleAutoAdd(false)}
           onHide={hideConfirmAddVar}
@@ -263,18 +309,13 @@ const Prompt: FC<ISimplePromptInput> = ({
 
       {showAutomatic && (
         <GetAutomaticResModal
-          mode={mode as AppType}
-          model={
-            {
-              provider: modelConfig.provider,
-              name: modelConfig.model_id,
-              mode: modelConfig.mode,
-              completion_params: completionParams as CompletionParams,
-            }
-          }
+          flowId={appId}
+          mode={mode as AppModeEnum}
           isShow={showAutomatic}
           onClose={showAutomaticFalse}
           onFinished={handleAutomaticRes}
+          currentPrompt={promptTemplate}
+          isBasicMode
         />
       )}
     </div>

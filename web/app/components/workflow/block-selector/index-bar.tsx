@@ -1,60 +1,38 @@
-import { pinyin } from 'pinyin-pro'
-import type { FC, RefObject } from 'react'
-
-export const groupItems = (items: Array<any>, getFirstChar: (item: string) => string) => {
-  const groups = items.reduce((acc, item) => {
-    const firstChar = getFirstChar(item)
-    if (!firstChar || firstChar.length === 0)
-      return acc
-
-    let letter
-
-    // transform Chinese to pinyin
-    if (/[\u4E00-\u9FA5]/.test(firstChar))
-      letter = pinyin(firstChar, { pattern: 'first', toneType: 'none' })[0].toUpperCase()
-    else
-      letter = firstChar.toUpperCase()
-
-    if (!/[A-Z]/.test(letter))
-      letter = '#'
-
-    if (!acc[letter])
-      acc[letter] = []
-
-    acc[letter].push(item)
-    return acc
-  }, {})
-
-  const letters = Object.keys(groups).sort()
-  // move '#' to the end
-  const hashIndex = letters.indexOf('#')
-  if (hashIndex !== -1) {
-    letters.splice(hashIndex, 1)
-    letters.push('#')
-  }
-  return { letters, groups }
-}
+import type { RefObject } from 'react'
+import { cn } from '@langgenius/dify-ui/cn'
 
 type IndexBarProps = {
   letters: string[]
   itemRefs: RefObject<{ [key: string]: HTMLElement | null }>
+  className?: string
 }
 
-const IndexBar: FC<IndexBarProps> = ({ letters, itemRefs }) => {
+export function IndexBar({ letters, itemRefs, className }: IndexBarProps) {
   const handleIndexClick = (letter: string) => {
     const element = itemRefs.current?.[letter]
-    if (element)
-      element.scrollIntoView({ behavior: 'smooth' })
+    if (element) element.scrollIntoView({ behavior: 'smooth' })
   }
   return (
-    <div className="index-bar fixed right-4 top-36 flex flex-col items-center text-xs font-medium text-text-quaternary">
-      {letters.map(letter => (
-        <div className="hover:text-text-secondary cursor-pointer" key={letter} onClick={() => handleIndexClick(letter)}>
+    <div
+      className={cn(
+        'sticky top-5 flex h-full w-6 shrink-0 flex-col items-center justify-center text-xs font-medium text-text-quaternary',
+        className,
+      )}
+    >
+      <div
+        aria-hidden
+        className="absolute top-0 left-0 h-full w-px bg-[linear-gradient(270deg,rgba(255,255,255,0)_0%,rgba(16,24,40,0.08)_30%,rgba(16,24,40,0.08)_50%,rgba(16,24,40,0.08)_70.5%,rgba(255,255,255,0)_100%)]"
+      />
+      {letters.map((letter) => (
+        <button
+          type="button"
+          className="flex h-4 w-5 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 outline-hidden hover:text-text-secondary focus-visible:ring-2 focus-visible:ring-state-accent-solid"
+          key={letter}
+          onClick={() => handleIndexClick(letter)}
+        >
           {letter}
-        </div>
+        </button>
       ))}
     </div>
   )
 }
-
-export default IndexBar

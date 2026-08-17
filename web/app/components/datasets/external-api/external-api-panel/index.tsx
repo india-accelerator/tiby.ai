@@ -1,28 +1,33 @@
-import React from 'react'
-import {
-  RiAddLine,
-  RiBookOpenLine,
-  RiCloseLine,
-} from '@remixicon/react'
+import { Button } from '@langgenius/dify-ui/button'
+import { cn } from '@langgenius/dify-ui/cn'
+import { RiAddLine, RiBookOpenLine, RiCloseLine } from '@remixicon/react'
+import * as React from 'react'
 import { useTranslation } from 'react-i18next'
-import ExternalKnowledgeAPICard from '../external-knowledge-api-card'
-import cn from '@/utils/classnames'
-import { useExternalKnowledgeApi } from '@/context/external-knowledge-api-context'
 import ActionButton from '@/app/components/base/action-button'
-import Button from '@/app/components/base/button'
 import Loading from '@/app/components/base/loading'
+import { useExternalKnowledgeApi } from '@/context/external-knowledge-api-context'
+import { useDocLink } from '@/context/i18n'
 import { useModalContext } from '@/context/modal-context'
+import ExternalKnowledgeAPICard from '../external-knowledge-api-card'
 
 type ExternalAPIPanelProps = {
+  canManageExternalKnowledgeApi: boolean
   onClose: () => void
 }
 
-const ExternalAPIPanel: React.FC<ExternalAPIPanelProps> = ({ onClose }) => {
+const ExternalAPIPanel: React.FC<ExternalAPIPanelProps> = ({
+  canManageExternalKnowledgeApi,
+  onClose,
+}) => {
   const { t } = useTranslation()
+  const docLink = useDocLink()
   const { setShowExternalKnowledgeAPIModal } = useModalContext()
-  const { externalKnowledgeApiList, mutateExternalKnowledgeApis, isLoading } = useExternalKnowledgeApi()
+  const { externalKnowledgeApiList, mutateExternalKnowledgeApis, isLoading } =
+    useExternalKnowledgeApi()
 
   const handleOpenExternalAPIModal = () => {
+    if (!canManageExternalKnowledgeApi) return
+
     setShowExternalKnowledgeAPIModal({
       payload: { name: '', settings: { endpoint: '', api_key: '' } },
       datasetBindings: [],
@@ -37,50 +42,63 @@ const ExternalAPIPanel: React.FC<ExternalAPIPanelProps> = ({ onClose }) => {
   }
 
   return (
-    <div
-      tabIndex={-1}
-      className={cn('absolute top-14 right-0 bottom-2 flex z-10 outline-none')}
-    >
+    <div tabIndex={-1} className={cn('absolute top-14 right-0 bottom-2 z-10 flex outline-hidden')}>
       <div
         className={cn(
-          'relative flex flex-col w-[420px] bg-components-panel-bg-alt rounded-l-2xl h-full border border-components-panel-border',
+          'relative flex h-full w-[420px] flex-col rounded-l-2xl border border-components-panel-border bg-components-panel-bg-alt',
         )}
       >
-        <div className='flex items-start self-stretch p-4 pb-0'>
-          <div className='flex flex-col items-start gap-1 flex-grow'>
-            <div className='self-stretch text-text-primary system-xl-semibold'>{t('dataset.externalAPIPanelTitle')}</div>
-            <div className='self-stretch text-text-tertiary body-xs-regular'>{t('dataset.externalAPIPanelDescription')}</div>
-            <a className='flex justify-center items-center gap-1 self-stretch cursor-pointer' href='https://docs.tiby.ai/guides/knowledge-base/external-knowledge-api-documentation' target='_blank'>
-              <RiBookOpenLine className='w-3 h-3 text-text-accent' />
-              <div className='flex-grow text-text-accent body-xs-regular'>{t('dataset.externalAPIPanelDocumentation')}</div>
+        <div className="flex items-start self-stretch p-4 pb-0">
+          <div className="flex grow flex-col items-start gap-1">
+            <div className="self-stretch system-xl-semibold text-text-primary">
+              {t(($) => $.externalAPIPanelTitle, { ns: 'dataset' })}
+            </div>
+            <div className="self-stretch body-xs-regular text-text-tertiary">
+              {t(($) => $.externalAPIPanelDescription, { ns: 'dataset' })}
+            </div>
+            <a
+              className="flex cursor-pointer items-center justify-center gap-1 self-stretch"
+              href={docLink('/use-dify/knowledge/external-knowledge-api')}
+              target="_blank"
+            >
+              <RiBookOpenLine className="size-3 text-text-accent" />
+              <div className="grow body-xs-regular text-text-accent">
+                {t(($) => $.externalAPIPanelDocumentation, { ns: 'dataset' })}
+              </div>
             </a>
           </div>
-          <div className='flex items-center'>
+          <div className="flex items-center">
             <ActionButton onClick={() => onClose()}>
-              <RiCloseLine className='w-4 h-4 text-text-tertiary' />
+              <RiCloseLine className="size-4 text-text-tertiary" />
             </ActionButton>
           </div>
         </div>
-        <div className='flex px-4 py-3 flex-col justify-center items-start gap-2 self-stretch'>
-          <Button
-            variant={'primary'}
-            className='flex justify-center items-center px-3 py-2 gap-0.5'
-            onClick={handleOpenExternalAPIModal}
-          >
-            <RiAddLine className='w-4 h-4 text-components-button-primary-text' />
-            <div className='text-components-button-primary-text system-sm-medium'>{t('dataset.createExternalAPI')}</div>
-          </Button>
-        </div>
-        <div className='flex py-0 px-4 flex-col items-start gap-1 flex-grow self-stretch'>
-          {isLoading
-            ? (
-              <Loading />
-            )
-            : (
-              externalKnowledgeApiList.map(api => (
-                <ExternalKnowledgeAPICard key={api.id} api={api} />
-              ))
-            )}
+        {canManageExternalKnowledgeApi && (
+          <div className="flex flex-col items-start justify-center gap-2 self-stretch px-4 py-3">
+            <Button
+              variant="primary"
+              className="flex items-center justify-center gap-0.5 px-3 py-2"
+              onClick={handleOpenExternalAPIModal}
+            >
+              <RiAddLine className="size-4 text-components-button-primary-text" />
+              <div className="system-sm-medium text-components-button-primary-text">
+                {t(($) => $.createExternalAPI, { ns: 'dataset' })}
+              </div>
+            </Button>
+          </div>
+        )}
+        <div className="flex grow flex-col items-start gap-1 self-stretch px-4 py-0">
+          {isLoading ? (
+            <Loading />
+          ) : (
+            externalKnowledgeApiList.map((api) => (
+              <ExternalKnowledgeAPICard
+                key={api.id}
+                api={api}
+                canManageExternalKnowledgeApi={canManageExternalKnowledgeApi}
+              />
+            ))
+          )}
         </div>
       </div>
     </div>

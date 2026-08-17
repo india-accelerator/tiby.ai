@@ -1,12 +1,13 @@
-from typing import Optional
+from typing import Any
 
 from flask import Flask
 from pydantic import BaseModel
 
 from configs import dify_config
-from core.entities.provider_entities import QuotaUnit, RestrictModel
-from core.model_runtime.entities.model_entities import ModelType
-from models.provider import ProviderQuotaType
+from core.entities import DEFAULT_PLUGIN_ID
+from core.entities.provider_entities import ProviderQuotaType, QuotaUnit, RestrictModel
+from enums.deployment_edition import DeploymentEdition
+from graphon.model_runtime.entities.model_entities import ModelType
 
 
 class HostingQuota(BaseModel):
@@ -30,8 +31,8 @@ class FreeHostingQuota(HostingQuota):
 
 class HostingProvider(BaseModel):
     enabled: bool = False
-    credentials: Optional[dict] = None
-    quota_unit: Optional[QuotaUnit] = None
+    credentials: dict[str, Any] | None = None
+    quota_unit: QuotaUnit | None = None
     quotas: list[HostingQuota] = []
 
 
@@ -41,19 +42,27 @@ class HostedModerationConfig(BaseModel):
 
 
 class HostingConfiguration:
-    provider_map: dict[str, HostingProvider] = {}
-    moderation_config: Optional[HostedModerationConfig] = None
+    provider_map: dict[str, HostingProvider]
+    moderation_config: HostedModerationConfig | None = None
 
-    def init_app(self, app: Flask) -> None:
-        if dify_config.EDITION != "CLOUD":
+    def __init__(self):
+        self.provider_map = {}
+        self.moderation_config = None
+
+    def init_app(self, app: Flask):
+        if dify_config.DEPLOYMENT_EDITION != DeploymentEdition.CLOUD:
             return
 
-        self.provider_map["azure_openai"] = self.init_azure_openai()
-        self.provider_map["openai"] = self.init_openai()
-        self.provider_map["anthropic"] = self.init_anthropic()
-        self.provider_map["minimax"] = self.init_minimax()
-        self.provider_map["spark"] = self.init_spark()
-        self.provider_map["zhipuai"] = self.init_zhipuai()
+        self.provider_map[f"{DEFAULT_PLUGIN_ID}/azure_openai/azure_openai"] = self.init_azure_openai()
+        self.provider_map[f"{DEFAULT_PLUGIN_ID}/openai/openai"] = self.init_openai()
+        self.provider_map[f"{DEFAULT_PLUGIN_ID}/anthropic/anthropic"] = self.init_anthropic()
+        self.provider_map[f"{DEFAULT_PLUGIN_ID}/minimax/minimax"] = self.init_minimax()
+        self.provider_map[f"{DEFAULT_PLUGIN_ID}/spark/spark"] = self.init_spark()
+        self.provider_map[f"{DEFAULT_PLUGIN_ID}/zhipuai/zhipuai"] = self.init_zhipuai()
+        self.provider_map[f"{DEFAULT_PLUGIN_ID}/gemini/google"] = self.init_gemini()
+        self.provider_map[f"{DEFAULT_PLUGIN_ID}/x/x"] = self.init_xai()
+        self.provider_map[f"{DEFAULT_PLUGIN_ID}/deepseek/deepseek"] = self.init_deepseek()
+        self.provider_map[f"{DEFAULT_PLUGIN_ID}/tongyi/tongyi"] = self.init_tongyi()
 
         self.moderation_config = self.init_moderation_config()
 
@@ -126,7 +135,7 @@ class HostingConfiguration:
         quotas: list[HostingQuota] = []
 
         if dify_config.HOSTED_OPENAI_TRIAL_ENABLED:
-            hosted_quota_limit = dify_config.HOSTED_OPENAI_QUOTA_LIMIT
+            hosted_quota_limit = 0
             trial_models = self.parse_restrict_models_from_env("HOSTED_OPENAI_TRIAL_MODELS")
             trial_quota = TrialHostingQuota(quota_limit=hosted_quota_limit, restrict_models=trial_models)
             quotas.append(trial_quota)
@@ -154,18 +163,49 @@ class HostingConfiguration:
             quota_unit=quota_unit,
         )
 
-    @staticmethod
-    def init_anthropic() -> HostingProvider:
-        quota_unit = QuotaUnit.TOKENS
+    def init_gemini(self) -> HostingProvider:
+        quota_unit = QuotaUnit.CREDITS
+        quotas: list[HostingQuota] = []
+
+        if dify_config.HOSTED_GEMINI_TRIAL_ENABLED:
+            hosted_quota_limit = 0
+            trial_models = self.parse_restrict_models_from_env("HOSTED_GEMINI_TRIAL_MODELS")
+            trial_quota = TrialHostingQuota(quota_limit=hosted_quota_limit, restrict_models=trial_models)
+            quotas.append(trial_quota)
+
+        if dify_config.HOSTED_GEMINI_PAID_ENABLED:
+            paid_models = self.parse_restrict_models_from_env("HOSTED_GEMINI_PAID_MODELS")
+            paid_quota = PaidHostingQuota(restrict_models=paid_models)
+            quotas.append(paid_quota)
+
+        if len(quotas) > 0:
+            credentials = {
+                "google_api_key": dify_config.HOSTED_GEMINI_API_KEY,
+            }
+
+            if dify_config.HOSTED_GEMINI_API_BASE:
+                credentials["google_base_url"] = dify_config.HOSTED_GEMINI_API_BASE
+
+            return HostingProvider(enabled=True, credentials=credentials, quota_unit=quota_unit, quotas=quotas)
+
+        return HostingProvider(
+            enabled=False,
+            quota_unit=quota_unit,
+        )
+
+    def init_anthropic(self) -> HostingProvider:
+        quota_unit = QuotaUnit.CREDITS
         quotas: list[HostingQuota] = []
 
         if dify_config.HOSTED_ANTHROPIC_TRIAL_ENABLED:
-            hosted_quota_limit = dify_config.HOSTED_ANTHROPIC_QUOTA_LIMIT
-            trial_quota = TrialHostingQuota(quota_limit=hosted_quota_limit)
+            hosted_quota_limit = 0
+            trail_models = self.parse_restrict_models_from_env("HOSTED_ANTHROPIC_TRIAL_MODELS")
+            trial_quota = TrialHostingQuota(quota_limit=hosted_quota_limit, restrict_models=trail_models)
             quotas.append(trial_quota)
 
         if dify_config.HOSTED_ANTHROPIC_PAID_ENABLED:
-            paid_quota = PaidHostingQuota()
+            paid_models = self.parse_restrict_models_from_env("HOSTED_ANTHROPIC_PAID_MODELS")
+            paid_quota = PaidHostingQuota(restrict_models=paid_models)
             quotas.append(paid_quota)
 
         if len(quotas) > 0:
@@ -175,6 +215,95 @@ class HostingConfiguration:
 
             if dify_config.HOSTED_ANTHROPIC_API_BASE:
                 credentials["anthropic_api_url"] = dify_config.HOSTED_ANTHROPIC_API_BASE
+
+            return HostingProvider(enabled=True, credentials=credentials, quota_unit=quota_unit, quotas=quotas)
+
+        return HostingProvider(
+            enabled=False,
+            quota_unit=quota_unit,
+        )
+
+    def init_tongyi(self) -> HostingProvider:
+        quota_unit = QuotaUnit.CREDITS
+        quotas: list[HostingQuota] = []
+
+        if dify_config.HOSTED_TONGYI_TRIAL_ENABLED:
+            hosted_quota_limit = 0
+            trail_models = self.parse_restrict_models_from_env("HOSTED_TONGYI_TRIAL_MODELS")
+            trial_quota = TrialHostingQuota(quota_limit=hosted_quota_limit, restrict_models=trail_models)
+            quotas.append(trial_quota)
+
+        if dify_config.HOSTED_TONGYI_PAID_ENABLED:
+            paid_models = self.parse_restrict_models_from_env("HOSTED_TONGYI_PAID_MODELS")
+            paid_quota = PaidHostingQuota(restrict_models=paid_models)
+            quotas.append(paid_quota)
+
+        if len(quotas) > 0:
+            credentials = {
+                "dashscope_api_key": dify_config.HOSTED_TONGYI_API_KEY,
+                # SNP-494: keep temporary compatibility with tongyi plugin string credential checks.
+                "use_international_endpoint": str(dify_config.HOSTED_TONGYI_USE_INTERNATIONAL_ENDPOINT).lower(),
+            }
+
+            return HostingProvider(enabled=True, credentials=credentials, quota_unit=quota_unit, quotas=quotas)
+
+        return HostingProvider(
+            enabled=False,
+            quota_unit=quota_unit,
+        )
+
+    def init_xai(self) -> HostingProvider:
+        quota_unit = QuotaUnit.CREDITS
+        quotas: list[HostingQuota] = []
+
+        if dify_config.HOSTED_XAI_TRIAL_ENABLED:
+            hosted_quota_limit = 0
+            trail_models = self.parse_restrict_models_from_env("HOSTED_XAI_TRIAL_MODELS")
+            trial_quota = TrialHostingQuota(quota_limit=hosted_quota_limit, restrict_models=trail_models)
+            quotas.append(trial_quota)
+
+        if dify_config.HOSTED_XAI_PAID_ENABLED:
+            paid_models = self.parse_restrict_models_from_env("HOSTED_XAI_PAID_MODELS")
+            paid_quota = PaidHostingQuota(restrict_models=paid_models)
+            quotas.append(paid_quota)
+
+        if len(quotas) > 0:
+            credentials = {
+                "api_key": dify_config.HOSTED_XAI_API_KEY,
+            }
+
+            if dify_config.HOSTED_XAI_API_BASE:
+                credentials["endpoint_url"] = dify_config.HOSTED_XAI_API_BASE
+
+            return HostingProvider(enabled=True, credentials=credentials, quota_unit=quota_unit, quotas=quotas)
+
+        return HostingProvider(
+            enabled=False,
+            quota_unit=quota_unit,
+        )
+
+    def init_deepseek(self) -> HostingProvider:
+        quota_unit = QuotaUnit.CREDITS
+        quotas: list[HostingQuota] = []
+
+        if dify_config.HOSTED_DEEPSEEK_TRIAL_ENABLED:
+            hosted_quota_limit = 0
+            trail_models = self.parse_restrict_models_from_env("HOSTED_DEEPSEEK_TRIAL_MODELS")
+            trial_quota = TrialHostingQuota(quota_limit=hosted_quota_limit, restrict_models=trail_models)
+            quotas.append(trial_quota)
+
+        if dify_config.HOSTED_DEEPSEEK_PAID_ENABLED:
+            paid_models = self.parse_restrict_models_from_env("HOSTED_DEEPSEEK_PAID_MODELS")
+            paid_quota = PaidHostingQuota(restrict_models=paid_models)
+            quotas.append(paid_quota)
+
+        if len(quotas) > 0:
+            credentials = {
+                "api_key": dify_config.HOSTED_DEEPSEEK_API_KEY,
+            }
+
+            if dify_config.HOSTED_DEEPSEEK_API_BASE:
+                credentials["endpoint_url"] = dify_config.HOSTED_DEEPSEEK_API_BASE
 
             return HostingProvider(enabled=True, credentials=credentials, quota_unit=quota_unit, quotas=quotas)
 
@@ -240,7 +369,14 @@ class HostingConfiguration:
     @staticmethod
     def init_moderation_config() -> HostedModerationConfig:
         if dify_config.HOSTED_MODERATION_ENABLED and dify_config.HOSTED_MODERATION_PROVIDERS:
-            return HostedModerationConfig(enabled=True, providers=dify_config.HOSTED_MODERATION_PROVIDERS.split(","))
+            providers = dify_config.HOSTED_MODERATION_PROVIDERS.split(",")
+            hosted_providers = []
+            for provider in providers:
+                if "/" not in provider:
+                    provider = f"{DEFAULT_PLUGIN_ID}/{provider}/{provider}"
+                hosted_providers.append(provider)
+
+            return HostedModerationConfig(enabled=True, providers=hosted_providers)
 
         return HostedModerationConfig(enabled=False)
 

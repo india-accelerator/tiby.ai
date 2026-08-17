@@ -1,18 +1,32 @@
 'use client'
-import type { FC } from 'react'
-import React, { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import type { FC, JSX } from 'react'
+import type {
+  AliyunConfig,
+  ArizeConfig,
+  DatabricksConfig,
+  LangFuseConfig,
+  LangSmithConfig,
+  MLflowConfig,
+  OpikConfig,
+  PhoenixConfig,
+  TencentConfig,
+  WeaveConfig,
+} from './type'
+import { cn } from '@langgenius/dify-ui/cn'
+import { StatusDot } from '@langgenius/dify-ui/status-dot'
+import { Switch } from '@langgenius/dify-ui/switch'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@langgenius/dify-ui/tooltip'
 import { useBoolean } from 'ahooks'
-import TracingIcon from './tracing-icon'
-import ProviderPanel from './provider-panel'
-import type { LangFuseConfig, LangSmithConfig, OpikConfig } from './type'
-import { TracingProvider } from './type'
+import * as React from 'react'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import Divider from '@/app/components/base/divider'
 import ProviderConfigModal from './provider-config-modal'
-import Indicator from '@/app/components/header/indicator'
-import Switch from '@/app/components/base/switch'
-import Tooltip from '@/app/components/base/tooltip'
+import ProviderPanel from './provider-panel'
+import TracingIcon from './tracing-icon'
+import { TracingProvider } from './type'
 
-const I18N_PREFIX = 'app.tracing'
+const I18N_PREFIX = 'tracing'
 
 export type PopupProps = {
   appId: string
@@ -21,10 +35,30 @@ export type PopupProps = {
   onStatusChange: (enabled: boolean) => void
   chosenProvider: TracingProvider | null
   onChooseProvider: (provider: TracingProvider) => void
+  arizeConfig: ArizeConfig | null
+  phoenixConfig: PhoenixConfig | null
   langSmithConfig: LangSmithConfig | null
   langFuseConfig: LangFuseConfig | null
   opikConfig: OpikConfig | null
-  onConfigUpdated: (provider: TracingProvider, payload: LangSmithConfig | LangFuseConfig | OpikConfig) => void
+  weaveConfig: WeaveConfig | null
+  aliyunConfig: AliyunConfig | null
+  mlflowConfig: MLflowConfig | null
+  databricksConfig: DatabricksConfig | null
+  tencentConfig: TencentConfig | null
+  onConfigUpdated: (
+    provider: TracingProvider,
+    payload:
+      | ArizeConfig
+      | PhoenixConfig
+      | LangSmithConfig
+      | LangFuseConfig
+      | OpikConfig
+      | WeaveConfig
+      | AliyunConfig
+      | TencentConfig
+      | MLflowConfig
+      | DatabricksConfig,
+  ) => void
   onConfigRemoved: (provider: TracingProvider) => void
 }
 
@@ -35,54 +69,127 @@ const ConfigPopup: FC<PopupProps> = ({
   onStatusChange,
   chosenProvider,
   onChooseProvider,
+  arizeConfig,
+  phoenixConfig,
   langSmithConfig,
   langFuseConfig,
   opikConfig,
+  weaveConfig,
+  aliyunConfig,
+  mlflowConfig,
+  databricksConfig,
+  tencentConfig,
   onConfigUpdated,
   onConfigRemoved,
 }) => {
   const { t } = useTranslation()
 
-  const [currentProvider, setCurrentProvider] = useState<TracingProvider | null>(TracingProvider.langfuse)
-  const [isShowConfigModal, {
-    setTrue: showConfigModal,
-    setFalse: hideConfigModal,
-  }] = useBoolean(false)
-  const handleOnConfig = useCallback((provider: TracingProvider) => {
-    return () => {
-      setCurrentProvider(provider)
-      showConfigModal()
-    }
-  }, [showConfigModal])
+  const [currentProvider, setCurrentProvider] = useState<TracingProvider | null>(
+    TracingProvider.langfuse,
+  )
+  const [isShowConfigModal, { setTrue: showConfigModal, setFalse: hideConfigModal }] =
+    useBoolean(false)
+  const handleOnConfig = useCallback(
+    (provider: TracingProvider) => {
+      return () => {
+        setCurrentProvider(provider)
+        showConfigModal()
+      }
+    },
+    [showConfigModal],
+  )
 
-  const handleOnChoose = useCallback((provider: TracingProvider) => {
-    return () => {
-      onChooseProvider(provider)
-    }
-  }, [onChooseProvider])
+  const handleOnChoose = useCallback(
+    (provider: TracingProvider) => {
+      return () => {
+        onChooseProvider(provider)
+      }
+    },
+    [onChooseProvider],
+  )
 
-  const handleConfigUpdated = useCallback((payload: LangSmithConfig | LangFuseConfig | OpikConfig) => {
-    onConfigUpdated(currentProvider!, payload)
-    hideConfigModal()
-  }, [currentProvider, hideConfigModal, onConfigUpdated])
+  const handleConfigUpdated = useCallback(
+    (
+      payload:
+        | ArizeConfig
+        | PhoenixConfig
+        | LangSmithConfig
+        | LangFuseConfig
+        | OpikConfig
+        | WeaveConfig
+        | AliyunConfig
+        | MLflowConfig
+        | DatabricksConfig
+        | TencentConfig,
+    ) => {
+      onConfigUpdated(currentProvider!, payload)
+      hideConfigModal()
+    },
+    [currentProvider, hideConfigModal, onConfigUpdated],
+  )
 
   const handleConfigRemoved = useCallback(() => {
     onConfigRemoved(currentProvider!)
     hideConfigModal()
   }, [currentProvider, hideConfigModal, onConfigRemoved])
 
-  const providerAllConfigured = langSmithConfig && langFuseConfig && opikConfig
-  const providerAllNotConfigured = !langSmithConfig && !langFuseConfig && !opikConfig
+  const providerAllConfigured =
+    arizeConfig &&
+    phoenixConfig &&
+    langSmithConfig &&
+    langFuseConfig &&
+    opikConfig &&
+    weaveConfig &&
+    aliyunConfig &&
+    mlflowConfig &&
+    databricksConfig &&
+    tencentConfig
+  const providerAllNotConfigured =
+    !arizeConfig &&
+    !phoenixConfig &&
+    !langSmithConfig &&
+    !langFuseConfig &&
+    !opikConfig &&
+    !weaveConfig &&
+    !aliyunConfig &&
+    !mlflowConfig &&
+    !databricksConfig &&
+    !tencentConfig
 
   const switchContent = (
     <Switch
-      className='ml-3'
-      defaultValue={enabled}
-      onChange={onStatusChange}
-      size='l'
+      className="ml-3"
+      checked={enabled}
+      onCheckedChange={onStatusChange}
       disabled={providerAllNotConfigured}
     />
   )
+  const arizePanel = (
+    <ProviderPanel
+      type={TracingProvider.arize}
+      readOnly={readOnly}
+      config={arizeConfig}
+      hasConfigured={!!arizeConfig}
+      onConfig={handleOnConfig(TracingProvider.arize)}
+      isChosen={chosenProvider === TracingProvider.arize}
+      onChoose={handleOnChoose(TracingProvider.arize)}
+      key="arize-provider-panel"
+    />
+  )
+
+  const phoenixPanel = (
+    <ProviderPanel
+      type={TracingProvider.phoenix}
+      readOnly={readOnly}
+      config={phoenixConfig}
+      hasConfigured={!!phoenixConfig}
+      onConfig={handleOnConfig(TracingProvider.phoenix)}
+      isChosen={chosenProvider === TracingProvider.phoenix}
+      onChoose={handleOnChoose(TracingProvider.phoenix)}
+      key="phoenix-provider-panel"
+    />
+  )
+
   const langSmithPanel = (
     <ProviderPanel
       type={TracingProvider.langSmith}
@@ -122,102 +229,214 @@ const ConfigPopup: FC<PopupProps> = ({
     />
   )
 
+  const weavePanel = (
+    <ProviderPanel
+      type={TracingProvider.weave}
+      readOnly={readOnly}
+      config={weaveConfig}
+      hasConfigured={!!weaveConfig}
+      onConfig={handleOnConfig(TracingProvider.weave)}
+      isChosen={chosenProvider === TracingProvider.weave}
+      onChoose={handleOnChoose(TracingProvider.weave)}
+      key="weave-provider-panel"
+    />
+  )
+
+  const aliyunPanel = (
+    <ProviderPanel
+      type={TracingProvider.aliyun}
+      readOnly={readOnly}
+      config={aliyunConfig}
+      hasConfigured={!!aliyunConfig}
+      onConfig={handleOnConfig(TracingProvider.aliyun)}
+      isChosen={chosenProvider === TracingProvider.aliyun}
+      onChoose={handleOnChoose(TracingProvider.aliyun)}
+      key="aliyun-provider-panel"
+    />
+  )
+
+  const mlflowPanel = (
+    <ProviderPanel
+      type={TracingProvider.mlflow}
+      readOnly={readOnly}
+      config={mlflowConfig}
+      hasConfigured={!!mlflowConfig}
+      onConfig={handleOnConfig(TracingProvider.mlflow)}
+      isChosen={chosenProvider === TracingProvider.mlflow}
+      onChoose={handleOnChoose(TracingProvider.mlflow)}
+      key="mlflow-provider-panel"
+    />
+  )
+
+  const databricksPanel = (
+    <ProviderPanel
+      type={TracingProvider.databricks}
+      readOnly={readOnly}
+      config={databricksConfig}
+      hasConfigured={!!databricksConfig}
+      onConfig={handleOnConfig(TracingProvider.databricks)}
+      isChosen={chosenProvider === TracingProvider.databricks}
+      onChoose={handleOnChoose(TracingProvider.databricks)}
+      key="databricks-provider-panel"
+    />
+  )
+
+  const tencentPanel = (
+    <ProviderPanel
+      type={TracingProvider.tencent}
+      readOnly={readOnly}
+      config={tencentConfig}
+      hasConfigured={!!tencentConfig}
+      onConfig={handleOnConfig(TracingProvider.tencent)}
+      isChosen={chosenProvider === TracingProvider.tencent}
+      onChoose={handleOnChoose(TracingProvider.tencent)}
+      key="tencent-provider-panel"
+    />
+  )
   const configuredProviderPanel = () => {
-    const configuredPanels: ProviderPanel[] = []
+    const configuredPanels: JSX.Element[] = []
 
-    if (langSmithConfig)
-      configuredPanels.push(langSmithPanel)
+    if (langFuseConfig) configuredPanels.push(langfusePanel)
 
-    if (langFuseConfig)
-      configuredPanels.push(langfusePanel)
+    if (langSmithConfig) configuredPanels.push(langSmithPanel)
 
-    if (opikConfig)
-      configuredPanels.push(opikPanel)
+    if (opikConfig) configuredPanels.push(opikPanel)
+
+    if (weaveConfig) configuredPanels.push(weavePanel)
+
+    if (arizeConfig) configuredPanels.push(arizePanel)
+
+    if (phoenixConfig) configuredPanels.push(phoenixPanel)
+
+    if (aliyunConfig) configuredPanels.push(aliyunPanel)
+
+    if (mlflowConfig) configuredPanels.push(mlflowPanel)
+
+    if (databricksConfig) configuredPanels.push(databricksPanel)
+
+    if (tencentConfig) configuredPanels.push(tencentPanel)
 
     return configuredPanels
   }
 
   const moreProviderPanel = () => {
-    const notConfiguredPanels: ProviderPanel[] = []
+    const notConfiguredPanels: JSX.Element[] = []
 
-    if (!langSmithConfig)
-      notConfiguredPanels.push(langSmithPanel)
+    if (!arizeConfig) notConfiguredPanels.push(arizePanel)
 
-    if (!langFuseConfig)
-      notConfiguredPanels.push(langfusePanel)
+    if (!phoenixConfig) notConfiguredPanels.push(phoenixPanel)
 
-    if (!opikConfig)
-      notConfiguredPanels.push(opikPanel)
+    if (!langFuseConfig) notConfiguredPanels.push(langfusePanel)
+
+    if (!langSmithConfig) notConfiguredPanels.push(langSmithPanel)
+
+    if (!opikConfig) notConfiguredPanels.push(opikPanel)
+
+    if (!weaveConfig) notConfiguredPanels.push(weavePanel)
+
+    if (!aliyunConfig) notConfiguredPanels.push(aliyunPanel)
+
+    if (!mlflowConfig) notConfiguredPanels.push(mlflowPanel)
+
+    if (!databricksConfig) notConfiguredPanels.push(databricksPanel)
+
+    if (!tencentConfig) notConfiguredPanels.push(tencentPanel)
 
     return notConfiguredPanels
   }
 
   const configuredProviderConfig = () => {
-    if (currentProvider === TracingProvider.langSmith)
-      return langSmithConfig
-    if (currentProvider === TracingProvider.langfuse)
-      return langFuseConfig
-    return opikConfig
+    if (currentProvider === TracingProvider.mlflow) return mlflowConfig
+    if (currentProvider === TracingProvider.databricks) return databricksConfig
+    if (currentProvider === TracingProvider.arize) return arizeConfig
+    if (currentProvider === TracingProvider.phoenix) return phoenixConfig
+    if (currentProvider === TracingProvider.langSmith) return langSmithConfig
+    if (currentProvider === TracingProvider.langfuse) return langFuseConfig
+    if (currentProvider === TracingProvider.opik) return opikConfig
+    if (currentProvider === TracingProvider.aliyun) return aliyunConfig
+    if (currentProvider === TracingProvider.tencent) return tencentConfig
+    return weaveConfig
   }
 
   return (
-    <div className='w-[420px] p-4 rounded-2xl bg-white border-[0.5px] border-black/5 shadow-lg'>
-      <div className='flex justify-between items-center'>
-        <div className='flex items-center'>
-          <TracingIcon size='md' className='mr-2' />
-          <div className='leading-[120%] text-[18px] font-semibold text-gray-900'>{t(`${I18N_PREFIX}.tracing`)}</div>
+    <div className="w-[420px] rounded-2xl border-[0.5px] border-components-panel-border bg-components-panel-bg p-4 shadow-xl">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <TracingIcon size="md" className="mr-2" />
+          <div className="title-2xl-semi-bold text-text-primary">
+            {t(($) => $[`${I18N_PREFIX}.tracing`], { ns: 'app' })}
+          </div>
         </div>
-        <div className='flex items-center'>
-          <Indicator color={enabled ? 'green' : 'gray'} />
-          <div className='ml-1.5 text-xs font-semibold text-gray-500 uppercase'>
-            {t(`${I18N_PREFIX}.${enabled ? 'enabled' : 'disabled'}`)}
+        <div className="flex items-center">
+          <StatusDot status={enabled ? 'success' : 'disabled'} />
+          <div
+            className={cn(
+              'ml-1 system-xs-semibold-uppercase text-text-tertiary',
+              enabled && 'text-util-colors-green-green-600',
+            )}
+          >
+            {t(($) => $[`${I18N_PREFIX}.${enabled ? 'enabled' : 'disabled'}`], { ns: 'app' })}
           </div>
           {!readOnly && (
             <>
-              {providerAllNotConfigured
-                ? (
-                  <Tooltip
-                    popupContent={t(`${I18N_PREFIX}.disabledTip`)}
-                  >
-                    {switchContent}
-                  </Tooltip>
-                )
-                : switchContent}
+              {providerAllNotConfigured ? (
+                <Tooltip>
+                  <TooltipTrigger render={switchContent} />
+                  <TooltipContent>
+                    {t(($) => $[`${I18N_PREFIX}.disabledTip`], { ns: 'app' })}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                switchContent
+              )}
             </>
           )}
-
         </div>
       </div>
 
-      <div className='mt-2 leading-4 text-xs font-normal text-gray-500'>
-        {t(`${I18N_PREFIX}.tracingDescription`)}
+      <div className="mt-2 system-xs-regular text-text-tertiary">
+        {t(($) => $[`${I18N_PREFIX}.tracingDescription`], { ns: 'app' })}
       </div>
-      <div className='mt-3 h-px bg-gray-100'></div>
-      <div className='mt-3'>
-        {(providerAllConfigured || providerAllNotConfigured)
-          ? (
-            <>
-              <div className='leading-4 text-xs font-medium text-gray-500 uppercase'>{t(`${I18N_PREFIX}.configProviderTitle.${providerAllConfigured ? 'configured' : 'notConfigured'}`)}</div>
-              <div className='mt-2 space-y-2'>
-                {langSmithPanel}
-                {langfusePanel}
-                {opikPanel}
-              </div>
-            </>
-          )
-          : (
-            <>
-              <div className='leading-4 text-xs font-medium text-gray-500 uppercase'>{t(`${I18N_PREFIX}.configProviderTitle.configured`)}</div>
-              <div className='mt-2 space-y-2'>
-                {configuredProviderPanel()}
-              </div>
-              <div className='mt-3 leading-4 text-xs font-medium text-gray-500 uppercase'>{t(`${I18N_PREFIX}.configProviderTitle.moreProvider`)}</div>
-              <div className='mt-2 space-y-2'>
-                {moreProviderPanel()}
-              </div>
-            </>
-          )}
-
+      <Divider className="my-3" />
+      <div className="relative">
+        {providerAllConfigured || providerAllNotConfigured ? (
+          <>
+            <div className="system-xs-medium-uppercase text-text-tertiary">
+              {t(
+                ($) =>
+                  $[
+                    `${I18N_PREFIX}.configProviderTitle.${providerAllConfigured ? 'configured' : 'notConfigured'}`
+                  ],
+                { ns: 'app' },
+              )}
+            </div>
+            <div className="mt-2 max-h-96 space-y-2 overflow-y-auto">
+              {langfusePanel}
+              {langSmithPanel}
+              {opikPanel}
+              {mlflowPanel}
+              {databricksPanel}
+              {weavePanel}
+              {arizePanel}
+              {phoenixPanel}
+              {aliyunPanel}
+              {tencentPanel}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="system-xs-medium-uppercase text-text-tertiary">
+              {t(($) => $[`${I18N_PREFIX}.configProviderTitle.configured`], { ns: 'app' })}
+            </div>
+            <div className="mt-2 max-h-40 space-y-2 overflow-y-auto">
+              {configuredProviderPanel()}
+            </div>
+            <div className="mt-3 system-xs-medium-uppercase text-text-tertiary">
+              {t(($) => $[`${I18N_PREFIX}.configProviderTitle.moreProvider`], { ns: 'app' })}
+            </div>
+            <div className="mt-2 max-h-40 space-y-2 overflow-y-auto">{moreProviderPanel()}</div>
+          </>
+        )}
       </div>
       {isShowConfigModal && (
         <ProviderConfigModal

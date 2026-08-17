@@ -1,44 +1,60 @@
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import CustomWebAppBrand from '../custom-web-app-brand'
-import s from '../style.module.css'
-import GridMask from '@/app/components/base/grid-mask'
-import UpgradeBtn from '@/app/components/billing/upgrade-btn'
-import { useProviderContext } from '@/context/provider-context'
-import { Plan } from '@/app/components/billing/type'
 import { contactSalesUrl } from '@/app/components/billing/config'
+import { Plan } from '@/app/components/billing/type'
+import { useModalContext } from '@/context/modal-context'
+import { useProviderContext } from '@/context/provider-context'
+import { systemFeaturesQueryOptions } from '@/features/system-features/client'
+import CustomWebAppBrand from '../custom-web-app-brand'
 
 const CustomPage = () => {
   const { t } = useTranslation()
+  const { data: deploymentEdition } = useSuspenseQuery({
+    ...systemFeaturesQueryOptions(),
+    select: ({ deployment_edition }) => deployment_edition,
+  })
   const { plan, enableBilling } = useProviderContext()
-
-  const showBillingTip = enableBilling && plan.type === Plan.sandbox
+  const { setShowPricingModal } = useModalContext()
+  const showBillingTip =
+    deploymentEdition === 'CLOUD' && enableBilling && plan.type === Plan.sandbox
   const showContact = enableBilling && (plan.type === Plan.professional || plan.type === Plan.team)
 
   return (
-    <div className='flex flex-col'>
-      {
-        showBillingTip && (
-          <GridMask canvasClassName='!rounded-xl'>
-            <div className='flex justify-between mb-1 px-6 py-5 h-[88px] shadow-md rounded-xl border-[0.5px] border-gray-200'>
-              <div className={`${s.textGradient} leading-[24px] text-base font-semibold`}>
-                <div>{t('custom.upgradeTip.prefix')}</div>
-                <div>{t('custom.upgradeTip.suffix')}</div>
-              </div>
-              <UpgradeBtn />
+    <div className="flex flex-col overflow-x-hidden">
+      {showBillingTip && (
+        <div className="mb-1 flex justify-between rounded-xl bg-linear-to-r from-components-input-border-active-prompt-1 to-components-input-border-active-prompt-2 p-4 pl-6 shadow-lg backdrop-blur-xs">
+          <div className="space-y-1 text-text-primary-on-surface">
+            <div className="title-xl-semi-bold">
+              {t(($) => $['upgradeTip.title'], { ns: 'custom' })}
             </div>
-          </GridMask>
-        )
-      }
-      <CustomWebAppBrand />
-      {
-        showContact && (
-          <div className='absolute bottom-0 h-[50px] leading-[50px] text-xs text-gray-500'>
-            {t('custom.customize.prefix')}
-            <a className='text-[#542cb7]' href={contactSalesUrl} target='_blank' rel='noopener noreferrer'>{t('custom.customize.contactUs')}</a>
-            {t('custom.customize.suffix')}
+            <div className="system-sm-regular">
+              {t(($) => $['upgradeTip.des'], { ns: 'custom' })}
+            </div>
           </div>
-        )
-      }
+          <button
+            type="button"
+            className="flex h-10 w-[120px] cursor-pointer items-center justify-center rounded-3xl border-none bg-white p-0 system-md-semibold text-text-accent shadow-xs hover:opacity-95"
+            onClick={() => setShowPricingModal()}
+          >
+            {t(($) => $['upgradeBtn.encourageShort'], { ns: 'billing' })}
+          </button>
+        </div>
+      )}
+      <CustomWebAppBrand />
+      {showContact && (
+        <div className="absolute bottom-0 h-[50px] text-xs leading-[50px] text-text-quaternary">
+          {t(($) => $['customize.prefix'], { ns: 'custom' })}
+          <a
+            className="text-text-accent"
+            href={contactSalesUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t(($) => $['customize.contactUs'], { ns: 'custom' })}
+          </a>
+          {t(($) => $['customize.suffix'], { ns: 'custom' })}
+        </div>
+      )}
     </div>
   )
 }

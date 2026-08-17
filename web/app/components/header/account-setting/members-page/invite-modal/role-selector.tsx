@@ -1,95 +1,204 @@
-import { useTranslation } from 'react-i18next'
-import cn from 'classnames'
-import React, { useState } from 'react'
-import { RiArrowDownSLine } from '@remixicon/react'
-import { useProviderContext } from '@/context/provider-context'
-import {
-  PortalToFollowElem,
-  PortalToFollowElemContent,
-  PortalToFollowElemTrigger,
-} from '@/app/components/base/portal-to-follow-elem'
-import { Check } from '@/app/components/base/icons/src/vender/line/general'
+'use client'
 
-export type RoleSelectorProps = {
-  value: string
-  onChange: (role: string) => void
+import type { Role } from '@/models/access-control'
+import { Field, FieldError } from '@langgenius/dify-ui/field'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectItemIndicator,
+  SelectItemText,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@langgenius/dify-ui/select'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useLocale } from '@/context/i18n'
+import { getAccessControlTemplateLanguage } from '@/i18n-config/language'
+import { useWorkspaceRoleList } from '@/service/access-control/use-workspace-roles'
+
+type RoleSelectorProps = {
+  hasServerError?: boolean
+  disabled?: boolean
 }
 
-const RoleSelector = ({ value, onChange }: RoleSelectorProps) => {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-  const { datasetOperatorEnabled } = useProviderContext()
+const PAGE_SIZE = 20
+const LEGACY_ROLE_DESCRIPTION_KEY_MAP = {
+  admin: 'members.adminTip',
+  editor: 'members.editorTip',
+  normal: 'members.normalTip',
+  dataset_operator: 'members.datasetOperatorTip',
+} as const
 
-  const toHump = (name: string) => name.replace(/_(\w)/g, (all, letter) => letter.toUpperCase())
+type LegacyRoleKey = keyof typeof LEGACY_ROLE_DESCRIPTION_KEY_MAP
+
+function normalizeLegacyRoleKey(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function isLegacyRoleKey(value: string): value is LegacyRoleKey {
+  return Object.prototype.hasOwnProperty.call(LEGACY_ROLE_DESCRIPTION_KEY_MAP, value)
+}
+
+function getLegacyRoleDescriptionKey(role: Role) {
+  const candidateKeys = [normalizeLegacyRoleKey(role.name), normalizeLegacyRoleKey(role.id)]
+  return candidateKeys.find(isLegacyRoleKey)
+}
+
+export function RoleSelector({ hasServerError = false, disabled = false }: RoleSelectorProps) {
+  const { t } = useTranslation()
+  const locale = useLocale()
+  const [open, setOpen] = useState(false)
+  const listRef = useRef<HTMLDivElement>(null)
+  const anchorRef = useRef<HTMLDivElement>(null)
+  const [observerReadyKey, setObserverReadyKey] = useState(0)
+  const language = getAccessControlTemplateLanguage(locale)
+
+  const {
+    data: rolesData,
+    isLoading: rolesLoading,
+    error: rolesError,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useWorkspaceRoleList({
+    page: 1,
+    limit: PAGE_SIZE,
+    language,
+  })
+
+  useEffect(() => {
+    const hasMore = hasNextPage ?? true
+    let observer: IntersectionObserver | undefined
+
+    if (rolesError || !open) return
+
+    if (anchorRef.current && listRef.current) {
+      const listHeight = listRef.current.clientHeight
+      const dynamicMargin = Math.max(100, Math.min(listHeight * 0.2, 200))
+
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (
+            entries[0]!.isIntersecting &&
+            !rolesLoading &&
+            !isFetchingNextPage &&
+            !rolesError &&
+            hasMore
+          )
+            fetchNextPage()
+        },
+        {
+          root: listRef.current,
+          rootMargin: `${dynamicMargin}px`,
+        },
+      )
+      observer.observe(anchorRef.current)
+    }
+
+    return () => observer?.disconnect()
+  }, [
+    rolesLoading,
+    isFetchingNextPage,
+    fetchNextPage,
+    rolesError,
+    hasNextPage,
+    open,
+    observerReadyKey,
+  ])
+
+  const roles = rolesData?.pages.flatMap((page) => page.data) ?? []
+
+  const setListElement = useCallback((node: HTMLDivElement | null) => {
+    listRef.current = node
+    setObserverReadyKey((key) => key + 1)
+  }, [])
+
+  const setAnchorElement = useCallback((node: HTMLDivElement | null) => {
+    anchorRef.current = node
+    setObserverReadyKey((key) => key + 1)
+  }, [])
+
+  const getRoleDescription = (role: Role) => {
+    if (role.description) return role.description
+
+    switch (getLegacyRoleDescriptionKey(role)) {
+      case 'admin':
+        return t(($) => $['members.adminTip'], { ns: 'common' })
+      case 'editor':
+        return t(($) => $['members.editorTip'], { ns: 'common' })
+      case 'normal':
+        return t(($) => $['members.normalTip'], { ns: 'common' })
+      case 'dataset_operator':
+        return t(($) => $['members.datasetOperatorTip'], { ns: 'common' })
+    }
+
+    return t(($) => $['role.noDescription'], { ns: 'permission' })
+  }
 
   return (
-    <PortalToFollowElem
-      open={open}
-      onOpenChange={setOpen}
-      placement='bottom-start'
-      offset={4}
-    >
-      <div className='relative'>
-        <PortalToFollowElemTrigger
-          onClick={() => setOpen(v => !v)}
-          className='block'
+    <Field name="role">
+      <Select<Role>
+        name="role"
+        required
+        disabled={disabled}
+        open={open}
+        onOpenChange={setOpen}
+        itemToStringLabel={(role) => role.name}
+        itemToStringValue={(role) => role.id}
+        isItemEqualToValue={(role, selectedRole) => role.id === selectedRole.id}
+      >
+        <SelectLabel>{t(($) => $['members.role'], { ns: 'common' })}</SelectLabel>
+        <SelectTrigger>
+          <SelectValue placeholder={t(($) => $['members.selectRole'], { ns: 'common' })} />
+        </SelectTrigger>
+        <SelectContent
+          listClassName="max-h-70"
+          listProps={{
+            ref: setListElement,
+            'aria-label': t(($) => $['members.role'], { ns: 'common' }),
+          }}
         >
-          <div className={cn('flex items-center px-3 py-2 rounded-lg bg-gray-100 cursor-pointer hover:bg-gray-200', open && 'bg-gray-200')}>
-            <div className='grow mr-2 text-gray-900 text-sm leading-5'>{t('common.members.invitedAsRole', { role: t(`common.members.${toHump(value)}`) })}</div>
-            <RiArrowDownSLine className='shrink-0 w-4 h-4 text-gray-700' />
-          </div>
-        </PortalToFollowElemTrigger>
-        <PortalToFollowElemContent className='z-[1002]'>
-          <div className='relative w-[336px] bg-white rounded-lg border-[0.5px] bg-gray-200 shadow-lg'>
-            <div className='p-1'>
-              <div className='p-2 rounded-lg hover:bg-gray-50 cursor-pointer' onClick={() => {
-                onChange('normal')
-                setOpen(false)
-              }}>
-                <div className='relative pl-5'>
-                  <div className='text-gray-700 text-sm leading-5'>{t('common.members.normal')}</div>
-                  <div className='text-gray-500 text-xs leading-[18px]'>{t('common.members.normalTip')}</div>
-                  {value === 'normal' && <Check className='absolute top-0.5 left-0 w-4 h-4 text-primary-600'/>}
-                </div>
-              </div>
-              <div className='p-2 rounded-lg hover:bg-gray-50 cursor-pointer' onClick={() => {
-                onChange('editor')
-                setOpen(false)
-              }}>
-                <div className='relative pl-5'>
-                  <div className='text-gray-700 text-sm leading-5'>{t('common.members.editor')}</div>
-                  <div className='text-gray-500 text-xs leading-[18px]'>{t('common.members.editorTip')}</div>
-                  {value === 'editor' && <Check className='absolute top-0.5 left-0 w-4 h-4 text-primary-600'/>}
-                </div>
-              </div>
-              <div className='p-2 rounded-lg hover:bg-gray-50 cursor-pointer' onClick={() => {
-                onChange('admin')
-                setOpen(false)
-              }}>
-                <div className='relative pl-5'>
-                  <div className='text-gray-700 text-sm leading-5'>{t('common.members.admin')}</div>
-                  <div className='text-gray-500 text-xs leading-[18px]'>{t('common.members.adminTip')}</div>
-                  {value === 'admin' && <Check className='absolute top-0.5 left-0 w-4 h-4 text-primary-600'/>}
-                </div>
-              </div>
-              {datasetOperatorEnabled && (
-                <div className='p-2 rounded-lg hover:bg-gray-50 cursor-pointer' onClick={() => {
-                  onChange('dataset_operator')
-                  setOpen(false)
-                }}>
-                  <div className='relative pl-5'>
-                    <div className='text-gray-700 text-sm leading-5'>{t('common.members.datasetOperator')}</div>
-                    <div className='text-gray-500 text-xs leading-[18px]'>{t('common.members.datasetOperatorTip')}</div>
-                    {value === 'dataset_operator' && <Check className='absolute top-0.5 left-0 w-4 h-4 text-primary-600'/>}
-                  </div>
-                </div>
-              )}
+          {rolesLoading ? (
+            <div className="px-3 py-6 text-center system-sm-regular text-text-tertiary">
+              {t(($) => $.loading, { ns: 'common' })}
             </div>
-          </div>
-        </PortalToFollowElemContent>
-      </div>
-    </PortalToFollowElem>
+          ) : rolesError && roles.length === 0 ? (
+            <div className="px-3 py-6 text-center system-sm-regular text-text-destructive-secondary">
+              {t(($) => $['dynamicSelect.error'], { ns: 'common' })}
+            </div>
+          ) : roles.length === 0 ? (
+            <div className="px-3 py-6 text-center system-sm-regular text-text-tertiary">
+              {t(($) => $['dynamicSelect.noData'], { ns: 'common' })}
+            </div>
+          ) : (
+            <>
+              {roles.map((role) => (
+                <SelectItem key={role.id} value={role} className="h-auto items-start py-2">
+                  <SelectItemText className="grid gap-0.5">
+                    <span className="truncate text-sm leading-5 text-text-secondary">
+                      {role.name}
+                    </span>
+                    <span className="line-clamp-2 text-xs leading-4.5 text-text-tertiary">
+                      {getRoleDescription(role)}
+                    </span>
+                  </SelectItemText>
+                  <SelectItemIndicator className="mt-0.5" />
+                </SelectItem>
+              ))}
+              <div ref={setAnchorElement} className="h-0" />
+            </>
+          )}
+        </SelectContent>
+      </Select>
+      {hasServerError ? (
+        <FieldError />
+      ) : (
+        <FieldError match="valueMissing">
+          {t(($) => $['members.selectRole'], { ns: 'common' })}
+        </FieldError>
+      )}
+    </Field>
   )
 }
-
-export default RoleSelector

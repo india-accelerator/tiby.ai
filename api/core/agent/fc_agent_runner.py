@@ -2,37 +2,41 @@ import json
 import logging
 from collections.abc import Generator
 from copy import deepcopy
-from typing import Any, Optional, Union
+from typing import Any, Union
+
+from sqlalchemy.orm import Session
 
 from core.agent.base_agent_runner import BaseAgentRunner
+from core.agent.errors import AgentMaxIterationError
 from core.app.apps.base_app_queue_manager import PublishFrom
 from core.app.entities.queue_entities import QueueAgentThoughtEvent, QueueMessageEndEvent, QueueMessageFileEvent
-from core.file import file_manager
-from core.model_runtime.entities import (
+from core.prompt.agent_history_prompt_transform import AgentHistoryPromptTransform
+from core.tools.entities.tool_entities import ToolInvokeMeta
+from core.tools.tool_engine import ToolEngine
+from graphon.file import file_manager
+from graphon.model_runtime.entities import (
     AssistantPromptMessage,
     LLMResult,
     LLMResultChunk,
     LLMResultChunkDelta,
     LLMUsage,
     PromptMessage,
-    PromptMessageContent,
     PromptMessageContentType,
     SystemPromptMessage,
     TextPromptMessageContent,
     ToolPromptMessage,
     UserPromptMessage,
 )
-from core.model_runtime.entities.message_entities import ImagePromptMessageContent
-from core.prompt.agent_history_prompt_transform import AgentHistoryPromptTransform
-from core.tools.entities.tool_entities import ToolInvokeMeta
-from core.tools.tool_engine import ToolEngine
+from graphon.model_runtime.entities.message_entities import ImagePromptMessageContent, PromptMessageContentUnionTypes
 from models.model import Message
 
 logger = logging.getLogger(__name__)
 
 
 class FunctionCallAgentRunner(BaseAgentRunner):
-    def run(self, message: Message, query: str, **kwargs: Any) -> Generator[LLMResultChunk, None, None]:
+    def run(
+        self, session: Session, message: Message, query: str, **kwargs: Any
+    ) -> Generator[LLMResultChunk, None, None]:
         """
         Run FunctionCall agent application
         """
@@ -46,24 +50,28 @@ class FunctionCallAgentRunner(BaseAgentRunner):
         # convert tools into ModelRuntime Tool format
         tool_instances, prompt_messages_tools = self._init_prompt_tools()
 
+        assert app_config.agent
+
         iteration_step = 1
-        max_iteration_steps = min(app_config.agent.max_iteration, 5) + 1
+        max_iteration_steps = min(app_config.agent.max_iteration, 99) + 1
 
         # continue to run until there is not any tool call
         function_call_state = True
-        llm_usage: dict[str, LLMUsage] = {"usage": LLMUsage.empty_usage()}
+        llm_usage: dict[str, LLMUsage | None] = {"usage": None}
         final_answer = ""
+        prompt_messages: list = []  # Initialize prompt_messages
 
         # get tracing instance
         trace_manager = app_generate_entity.trace_manager
 
-        def increase_usage(final_llm_usage_dict: dict[str, LLMUsage], usage: LLMUsage):
+        def increase_usage(final_llm_usage_dict: dict[str, LLMUsage | None], usage: LLMUsage):
             if not final_llm_usage_dict["usage"]:
                 final_llm_usage_dict["usage"] = usage
             else:
                 llm_usage = final_llm_usage_dict["usage"]
                 llm_usage.prompt_tokens += usage.prompt_tokens
                 llm_usage.completion_tokens += usage.completion_tokens
+                llm_usage.total_tokens += usage.total_tokens
                 llm_usage.prompt_price += usage.prompt_price
                 llm_usage.completion_price += usage.completion_price
                 llm_usage.total_price += usage.total_price
@@ -78,13 +86,22 @@ class FunctionCallAgentRunner(BaseAgentRunner):
                 prompt_messages_tools = []
 
             message_file_ids: list[str] = []
-            agent_thought = self.create_agent_thought(
-                message_id=message.id, message="", tool_name="", tool_input="", messages_ids=message_file_ids
+            agent_thought_id = self.create_agent_thought(
+                message_id=message.id,
+                message="",
+                tool_name="",
+                tool_input="",
+                messages_ids=message_file_ids,
             )
 
             # recalc llm max tokens
             prompt_messages = self._organize_prompt_messages()
             self.recalc_llm_max_tokens(self.model_config, prompt_messages)
+
+            # Release any setup/tool transaction before waiting on the provider stream.
+            session.commit()
+            session.close()
+
             # invoke model
             chunks: Union[Generator[LLMResultChunk, None, None], LLMResult] = model_instance.invoke_llm(
                 prompt_messages=prompt_messages,
@@ -92,8 +109,8 @@ class FunctionCallAgentRunner(BaseAgentRunner):
                 tools=prompt_messages_tools,
                 stop=app_generate_entity.model_conf.stop,
                 stream=self.stream_tool_call,
-                user=self.user_id,
                 callbacks=[],
+                request_metadata={"app_id": self.app_config.app_id},
             )
 
             tool_calls: list[tuple[str, str, dict[str, Any]]] = []
@@ -107,12 +124,12 @@ class FunctionCallAgentRunner(BaseAgentRunner):
 
             current_llm_usage = None
 
-            if self.stream_tool_call and isinstance(chunks, Generator):
+            if isinstance(chunks, Generator):
                 is_first_chunk = True
                 for chunk in chunks:
                     if is_first_chunk:
                         self.queue_manager.publish(
-                            QueueAgentThoughtEvent(agent_thought_id=agent_thought.id), PublishFrom.APPLICATION_MANAGER
+                            QueueAgentThoughtEvent(agent_thought_id=agent_thought_id), PublishFrom.APPLICATION_MANAGER
                         )
                         is_first_chunk = False
                     # check if there is any tool call
@@ -124,8 +141,8 @@ class FunctionCallAgentRunner(BaseAgentRunner):
                             tool_call_inputs = json.dumps(
                                 {tool_call[1]: tool_call[2] for tool_call in tool_calls}, ensure_ascii=False
                             )
-                        except json.JSONDecodeError as e:
-                            # ensure ascii to avoid encoding error
+                        except TypeError:
+                            # fallback: force ASCII to handle non-serializable objects
                             tool_call_inputs = json.dumps({tool_call[1]: tool_call[2] for tool_call in tool_calls})
 
                     if chunk.delta.message and chunk.delta.message.content:
@@ -140,7 +157,7 @@ class FunctionCallAgentRunner(BaseAgentRunner):
                         current_llm_usage = chunk.delta.usage
 
                     yield chunk
-            elif not self.stream_tool_call and isinstance(chunks, LLMResult):
+            else:
                 result = chunks
                 # check if there is any tool call
                 if self.check_blocking_tool_calls(result):
@@ -151,8 +168,8 @@ class FunctionCallAgentRunner(BaseAgentRunner):
                         tool_call_inputs = json.dumps(
                             {tool_call[1]: tool_call[2] for tool_call in tool_calls}, ensure_ascii=False
                         )
-                    except json.JSONDecodeError as e:
-                        # ensure ascii to avoid encoding error
+                    except TypeError:
+                        # fallback: force ASCII to handle non-serializable objects
                         tool_call_inputs = json.dumps({tool_call[1]: tool_call[2] for tool_call in tool_calls})
 
                 if result.usage:
@@ -164,17 +181,17 @@ class FunctionCallAgentRunner(BaseAgentRunner):
                         for content in result.message.content:
                             response += content.data
                     else:
-                        response += str(result.message.content)
+                        response += result.message.content
 
                 if not result.message.content:
                     result.message.content = ""
 
                 self.queue_manager.publish(
-                    QueueAgentThoughtEvent(agent_thought_id=agent_thought.id), PublishFrom.APPLICATION_MANAGER
+                    QueueAgentThoughtEvent(agent_thought_id=agent_thought_id), PublishFrom.APPLICATION_MANAGER
                 )
 
                 yield LLMResultChunk(
-                    model=model_instance.model,
+                    model=model_instance.model_name,
                     prompt_messages=result.prompt_messages,
                     system_fingerprint=result.system_fingerprint,
                     delta=LLMResultChunkDelta(
@@ -183,10 +200,8 @@ class FunctionCallAgentRunner(BaseAgentRunner):
                         usage=result.usage,
                     ),
                 )
-            else:
-                raise RuntimeError(f"invalid chunks type: {type(chunks)}")
 
-            assistant_message = AssistantPromptMessage(content="", tool_calls=[])
+            assistant_message = AssistantPromptMessage(content=response, tool_calls=[])
             if tool_calls:
                 assistant_message.tool_calls = [
                     AssistantPromptMessage.ToolCall(
@@ -198,14 +213,12 @@ class FunctionCallAgentRunner(BaseAgentRunner):
                     )
                     for tool_call in tool_calls
                 ]
-            else:
-                assistant_message.content = response
 
             self._current_thoughts.append(assistant_message)
 
             # save thought
             self.save_agent_thought(
-                agent_thought=agent_thought,
+                agent_thought_id=agent_thought_id,
                 tool_name=tool_call_names,
                 tool_input=tool_call_inputs,
                 thought=response,
@@ -216,10 +229,14 @@ class FunctionCallAgentRunner(BaseAgentRunner):
                 llm_usage=current_llm_usage,
             )
             self.queue_manager.publish(
-                QueueAgentThoughtEvent(agent_thought_id=agent_thought.id), PublishFrom.APPLICATION_MANAGER
+                QueueAgentThoughtEvent(agent_thought_id=agent_thought_id), PublishFrom.APPLICATION_MANAGER
             )
 
             final_answer += response + "\n"
+
+            # Check if max iteration is reached and model still wants to call tools
+            if iteration_step == max_iteration_steps and tool_calls:
+                raise AgentMaxIterationError(app_config.agent.max_iteration)
 
             # call tools
             tool_responses = []
@@ -235,6 +252,7 @@ class FunctionCallAgentRunner(BaseAgentRunner):
                 else:
                     # invoke tool
                     tool_invoke_response, message_files, tool_invoke_meta = ToolEngine.agent_invoke(
+                        session=session,
                         tool=tool_instance,
                         tool_parameters=tool_call_args,
                         user_id=self.user_id,
@@ -243,15 +261,14 @@ class FunctionCallAgentRunner(BaseAgentRunner):
                         invoke_from=self.application_generate_entity.invoke_from,
                         agent_tool_callback=self.agent_callback,
                         trace_manager=trace_manager,
+                        app_id=self.application_generate_entity.app_config.app_id,
+                        message_id=self.message.id,
+                        conversation_id=self.conversation.id,
                     )
+                    session.commit()
+                    session.close()
                     # publish files
-                    for message_file_id, save_as in message_files:
-                        if save_as:
-                            if self.variables_pool:
-                                self.variables_pool.set_file(
-                                    tool_name=tool_call_name, value=message_file_id, name=save_as
-                                )
-
+                    for message_file_id in message_files:
                         # publish message file
                         self.queue_manager.publish(
                             QueueMessageFileEvent(message_file_id=message_file_id), PublishFrom.APPLICATION_MANAGER
@@ -279,7 +296,7 @@ class FunctionCallAgentRunner(BaseAgentRunner):
             if len(tool_responses) > 0:
                 # save agent thought
                 self.save_agent_thought(
-                    agent_thought=agent_thought,
+                    agent_thought_id=agent_thought_id,
                     tool_name="",
                     tool_input="",
                     thought="",
@@ -294,22 +311,22 @@ class FunctionCallAgentRunner(BaseAgentRunner):
                     messages_ids=message_file_ids,
                 )
                 self.queue_manager.publish(
-                    QueueAgentThoughtEvent(agent_thought_id=agent_thought.id), PublishFrom.APPLICATION_MANAGER
+                    QueueAgentThoughtEvent(agent_thought_id=agent_thought_id), PublishFrom.APPLICATION_MANAGER
                 )
 
             # update prompt tool
             for prompt_tool in prompt_messages_tools:
-                self.update_prompt_message_tool(tool_instances[prompt_tool.name], prompt_tool)
+                tool_instance = tool_instances.get(prompt_tool.name)
+                if tool_instance:
+                    self.update_prompt_message_tool(tool_instance, prompt_tool)
 
             iteration_step += 1
 
-        if self.variables_pool and self.db_variables_pool:
-            self.update_db_variables(self.variables_pool, self.db_variables_pool)
         # publish end event
         self.queue_manager.publish(
             QueueMessageEndEvent(
                 llm_result=LLMResult(
-                    model=model_instance.model,
+                    model=model_instance.model_name,
                     prompt_messages=prompt_messages,
                     message=AssistantPromptMessage(content=final_answer),
                     usage=llm_usage["usage"] or LLMUsage.empty_usage(),
@@ -335,9 +352,7 @@ class FunctionCallAgentRunner(BaseAgentRunner):
             return True
         return False
 
-    def extract_tool_calls(
-        self, llm_result_chunk: LLMResultChunk
-    ) -> Union[None, list[tuple[str, str, dict[str, Any]]]]:
+    def extract_tool_calls(self, llm_result_chunk: LLMResultChunk) -> list[tuple[str, str, dict[str, Any]]]:
         """
         Extract tool calls from llm result chunk
 
@@ -360,7 +375,7 @@ class FunctionCallAgentRunner(BaseAgentRunner):
 
         return tool_calls
 
-    def extract_blocking_tool_calls(self, llm_result: LLMResult) -> Union[None, list[tuple[str, str, dict[str, Any]]]]:
+    def extract_blocking_tool_calls(self, llm_result: LLMResult) -> list[tuple[str, str, dict[str, Any]]]:
         """
         Extract blocking tool calls from llm result
 
@@ -383,9 +398,7 @@ class FunctionCallAgentRunner(BaseAgentRunner):
 
         return tool_calls
 
-    def _init_system_message(
-        self, prompt_template: str, prompt_messages: Optional[list[PromptMessage]] = None
-    ) -> list[PromptMessage]:
+    def _init_system_message(self, prompt_template: str, prompt_messages: list[PromptMessage]) -> list[PromptMessage]:
         """
         Initialize system message
         """
@@ -404,9 +417,6 @@ class FunctionCallAgentRunner(BaseAgentRunner):
         Organize user query
         """
         if self.files:
-            prompt_message_contents: list[PromptMessageContent] = []
-            prompt_message_contents.append(TextPromptMessageContent(data=query))
-
             # get image detail config
             image_detail_config = (
                 self.application_generate_entity.file_upload_config.image_config.detail
@@ -417,6 +427,8 @@ class FunctionCallAgentRunner(BaseAgentRunner):
                 else None
             )
             image_detail_config = image_detail_config or ImagePromptMessageContent.DETAIL.LOW
+
+            prompt_message_contents: list[PromptMessageContentUnionTypes] = []
             for file in self.files:
                 prompt_message_contents.append(
                     file_manager.to_prompt_message_content(
@@ -424,6 +436,7 @@ class FunctionCallAgentRunner(BaseAgentRunner):
                         image_detail_config=image_detail_config,
                     )
                 )
+            prompt_message_contents.append(TextPromptMessageContent(data=query))
 
             prompt_messages.append(UserPromptMessage(content=prompt_message_contents))
         else:

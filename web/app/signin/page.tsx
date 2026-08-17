@@ -1,14 +1,13 @@
 'use client'
-import { useSearchParams } from 'next/navigation'
-import OneMoreStep from './oneMoreStep'
-import NormalForm from './normalForm'
+import { useSearchParams } from '@/next/navigation'
+import NormalForm from './normal-form'
+import OneMoreStep from './one-more-step'
 
 const SignIn = () => {
   const searchParams = useSearchParams()
   const step = searchParams.get('step')
 
-  if (step === 'next')
-    return <OneMoreStep />
+  if (step === 'next') return <OneMoreStep />
   return <NormalForm />
 }
 

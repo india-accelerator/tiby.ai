@@ -1,22 +1,17 @@
 import type { FC } from 'react'
-import React from 'react'
-import { useTranslation } from 'react-i18next'
-import {
-  RiAddLine,
-} from '@remixicon/react'
-import VarList from './components/var-list'
-import useConfig from './use-config'
 import type { AssignerNodeType } from './types'
-import { useHandleAddOperationItem } from './hooks'
+import type { NodePanelProps } from '@/app/components/workflow/types'
+import { RiAddLine } from '@remixicon/react'
+import * as React from 'react'
+import { useTranslation } from 'react-i18next'
 import ActionButton from '@/app/components/base/action-button'
-import { type NodePanelProps } from '@/app/components/workflow/types'
+import VarList from './components/var-list'
+import { useHandleAddOperationItem } from './hooks'
+import useConfig from './use-config'
 
-const i18nPrefix = 'workflow.nodes.assigner'
+const i18nPrefix = 'nodes.assigner'
 
-const Panel: FC<NodePanelProps<AssignerNodeType>> = ({
-  id,
-  data,
-}) => {
+const Panel: FC<NodePanelProps<AssignerNodeType>> = ({ id, data }) => {
   const { t } = useTranslation()
   const handleAddOperationItem = useHandleAddOperationItem()
   const {
@@ -37,12 +32,14 @@ const Panel: FC<NodePanelProps<AssignerNodeType>> = ({
   }
 
   return (
-    <div className='flex py-2 flex-col items-start self-stretch'>
-      <div className='flex flex-col justify-center items-start gap-1 px-4 py-2 w-full self-stretch'>
-        <div className='flex items-start gap-2 self-stretch'>
-          <div className='flex flex-col justify-center items-start flex-grow text-text-secondary system-sm-semibold-uppercase'>{t(`${i18nPrefix}.variables`)}</div>
+    <div className="flex flex-col items-start self-stretch py-2">
+      <div className="flex w-full flex-col items-start justify-center gap-1 self-stretch px-4 py-2">
+        <div className="flex items-start gap-2 self-stretch">
+          <div className="flex grow flex-col items-start justify-center system-sm-semibold-uppercase text-text-secondary">
+            {t(($) => $[`${i18nPrefix}.variables`], { ns: 'workflow' })}
+          </div>
           <ActionButton onClick={handleAddOperation}>
-            <RiAddLine className='w-4 h-4 shrink-0 text-text-tertiary' />
+            <RiAddLine className="size-4 shrink-0 text-text-tertiary" />
           </ActionButton>
         </div>
         <VarList

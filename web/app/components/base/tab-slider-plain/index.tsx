@@ -1,51 +1,58 @@
 'use client'
 import type { FC } from 'react'
-import React from 'react'
-import cn from '@/utils/classnames'
+import { cn } from '@langgenius/dify-ui/cn'
+import * as React from 'react'
 
 type Option = {
   value: string
-  text: string | JSX.Element
+  text: string | React.JSX.Element
 }
 
-type ItemProps = {
+type ItemProps = Readonly<{
   className?: string
   isActive: boolean
   onClick: (v: string) => void
   option: Option
-}
-const Item: FC<ItemProps> = ({
-  className,
-  isActive,
-  onClick,
-  option,
-}) => {
+  smallItem?: boolean
+}>
+const Item: FC<ItemProps> = ({ className, isActive, onClick, option, smallItem }) => {
   return (
     <div
       key={option.value}
+      data-testid={`tab-slider-item-${option.value}`}
       className={cn(
-        'relative pb-2.5 system-xl-semibold',
+        'relative pb-2.5',
         !isActive && 'cursor-pointer',
+        smallItem ? 'system-sm-semibold-uppercase' : 'system-xl-semibold',
         className,
       )}
       onClick={() => !isActive && onClick(option.value)}
     >
-      <div className={cn(isActive ? 'text-text-primary' : 'text-text-tertiary')}>{option.text}</div>
+      <div
+        data-testid="tab-slider-item-text"
+        className={cn(isActive ? 'text-text-primary' : 'text-text-tertiary')}
+      >
+        {option.text}
+      </div>
       {isActive && (
-        <div className='absolute bottom-0 left-0 right-0 h-0.5 bg-util-colors-blue-blue-500'></div>
+        <div
+          data-testid="tab-active-indicator"
+          className="absolute inset-x-0 bottom-0 h-0.5 bg-util-colors-blue-brand-blue-brand-600"
+        ></div>
       )}
     </div>
   )
 }
 
-type Props = {
+type Props = Readonly<{
   className?: string
   value: string
   onChange: (v: string) => void
   options: Option[]
   noBorderBottom?: boolean
+  smallItem?: boolean
   itemClassName?: string
-}
+}>
 
 const TabSlider: FC<Props> = ({
   className,
@@ -54,16 +61,25 @@ const TabSlider: FC<Props> = ({
   options,
   noBorderBottom,
   itemClassName,
+  smallItem,
 }) => {
   return (
-    <div className={cn(className, !noBorderBottom && 'border-b border-divider-subtle', 'flex  space-x-6')}>
-      {options.map(option => (
+    <div
+      data-testid="tab-slider"
+      className={cn(
+        className,
+        !noBorderBottom && 'border-b border-divider-subtle',
+        'flex space-x-6',
+      )}
+    >
+      {options.map((option) => (
         <Item
           isActive={option.value === value}
           option={option}
           onClick={onChange}
           key={option.value}
           className={itemClassName}
+          smallItem={smallItem}
         />
       ))}
     </div>

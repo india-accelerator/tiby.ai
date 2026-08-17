@@ -1,145 +1,229 @@
 'use client'
-import { useState } from 'react'
-import useSWR from 'swr'
-import dayjs from 'dayjs'
-import 'dayjs/locale/zh-cn'
-import relativeTime from 'dayjs/plugin/relativeTime'
-import { useContext } from 'use-context-selector'
-import { RiUserAddLine } from '@remixicon/react'
+import type { MemberInviteResponse } from '@dify/contracts/api/console/workspaces/types.gen'
+import type { Role } from '@/models/access-control'
+import type { Member } from '@/models/common'
+import { toast } from '@langgenius/dify-ui/toast'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@langgenius/dify-ui/tooltip'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { useAtomValue } from 'jotai'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import InviteModal from './invite-modal'
-import InvitedModal from './invited-modal'
-import Operation from './operation'
-import { fetchMembers } from '@/service/common'
-import I18n from '@/context/i18n'
-import { useAppContext } from '@/context/app-context'
-import Avatar from '@/app/components/base/avatar'
-import type { InvitationResult } from '@/models/common'
-import LogoEmbeddedChatHeader from '@/app/components/base/logo/logo-embedded-chat-header'
-import { useProviderContext } from '@/context/provider-context'
+import { WorkspaceAvatar } from '@/app/components/base/workspace-avatar'
+import { NUM_INFINITE } from '@/app/components/billing/config'
 import { Plan } from '@/app/components/billing/type'
 import UpgradeBtn from '@/app/components/billing/upgrade-btn'
-import { NUM_INFINITE } from '@/app/components/billing/config'
-import { LanguagesSupported } from '@/i18n/language'
-dayjs.extend(relativeTime)
+import { userProfileEmailAtom } from '@/context/account-state'
+import { useLocale } from '@/context/i18n'
+import { workspacePermissionKeysAtom } from '@/context/permission-state'
+import { useProviderContext } from '@/context/provider-context'
+import { currentWorkspaceAtom, isCurrentWorkspaceOwnerAtom } from '@/context/workspace-state'
+import { systemFeaturesQueryOptions } from '@/features/system-features/client'
+import { getAccessControlTemplateLanguage, LanguagesSupported } from '@/i18n-config/language'
+import { useUpdateRolesOfMember } from '@/service/access-control/use-member-roles'
+import { useMembers } from '@/service/use-common'
+import { hasPermission } from '@/utils/permission'
+import EditWorkspaceModal from './edit-workspace-modal'
+import InviteButton from './invite-button'
+import { InviteModal } from './invite-modal'
+import InvitedModal from './invited-modal'
+import MemberDetailsModal from './member-details-modal'
+import MemberRow from './member-row'
+import TransferOwnershipModal from './transfer-ownership-modal'
 
 const MembersPage = () => {
   const { t } = useTranslation()
-  const RoleMap = {
-    owner: t('common.members.owner'),
-    admin: t('common.members.admin'),
-    editor: t('common.members.editor'),
-    dataset_operator: t('common.members.datasetOperator'),
-    normal: t('common.members.normal'),
-  }
-  const { locale } = useContext(I18n)
+  const locale = useLocale()
+  const language = getAccessControlTemplateLanguage(locale)
 
-  const { userProfile, currentWorkspace, isCurrentWorkspaceOwner, isCurrentWorkspaceManager, systemFeatures } = useAppContext()
-  const { data, mutate } = useSWR({ url: '/workspaces/current/members' }, fetchMembers)
+  const userProfileEmail = useAtomValue(userProfileEmailAtom)
+  const currentWorkspace = useAtomValue(currentWorkspaceAtom)
+  const isCurrentWorkspaceOwner = useAtomValue(isCurrentWorkspaceOwnerAtom)
+  const workspacePermissionKeys = useAtomValue(workspacePermissionKeysAtom)
+  const { data, refetch } = useMembers(language)
+  const { data: systemFeatures } = useSuspenseQuery(systemFeaturesQueryOptions())
   const [inviteModalVisible, setInviteModalVisible] = useState(false)
-  const [invitationResults, setInvitationResults] = useState<InvitationResult[]>([])
-  const [invitedModalVisible, setInvitedModalVisible] = useState(false)
+  const [invitationResults, setInvitationResults] = useState<
+    MemberInviteResponse['invitation_results'] | null
+  >(null)
   const accounts = data?.accounts || []
-  const { plan, enableBilling } = useProviderContext()
-  const isNotUnlimitedMemberPlan = enableBilling && plan.type !== Plan.team && plan.type !== Plan.enterprise
-  const isMemberFull = enableBilling && isNotUnlimitedMemberPlan && accounts.length >= plan.total.teamMembers
+  const { plan, enableBilling, isAllowTransferWorkspace } = useProviderContext()
+  const isNotUnlimitedMemberPlan =
+    enableBilling && plan.type !== Plan.team && plan.type !== Plan.enterprise
+  const isMemberFull =
+    enableBilling && isNotUnlimitedMemberPlan && accounts.length >= plan.total.teamMembers
+  const [editWorkspaceModalVisible, setEditWorkspaceModalVisible] = useState(false)
+  const [showTransferOwnershipModal, setShowTransferOwnershipModal] = useState(false)
+  const [detailsMember, setDetailsMember] = useState<Member | null>(null)
+
+  const canManageMembers = hasPermission(workspacePermissionKeys, 'workspace.member.manage')
+  const roleColumnLabel = systemFeatures.rbac_enabled
+    ? t(($) => $['members.roles'], { ns: 'common' })
+    : t(($) => $['members.role'], { ns: 'common' })
+
+  const handleOpenDetails = useCallback((member: Member) => {
+    setDetailsMember(member)
+  }, [])
+
+  const handleCloseDetails = useCallback(() => {
+    setDetailsMember(null)
+  }, [])
+
+  const { mutateAsync: updateRolesOfMember } = useUpdateRolesOfMember()
+
+  const handleAssignRolesSubmit = (roles: Role[]) => {
+    const roleIds = systemFeatures.rbac_enabled
+      ? roles.map((role) => role.id)
+      : roles.slice(0, 1).map((role) => role.id)
+
+    updateRolesOfMember(
+      {
+        memberId: detailsMember!.id,
+        roleIds,
+      },
+      {
+        onSuccess: () => {
+          toast.success(t(($) => $['actionMsg.modifiedSuccessfully'], { ns: 'common' }))
+          refetch()
+        },
+      },
+    )
+  }
+
+  const handleTransferOwnership = useCallback(() => {
+    setShowTransferOwnershipModal(true)
+  }, [])
 
   return (
     <>
-      <div className='flex flex-col'>
-        <div className='flex items-center mb-4 p-3 bg-gray-50 rounded-2xl'>
-          <LogoEmbeddedChatHeader className='!w-10 !h-10' />
-          <div className='grow mx-2'>
-            <div className='text-sm font-medium text-gray-900'>{currentWorkspace?.name}</div>
-            {enableBilling && (
-              <div className='text-xs text-gray-500'>
-                {isNotUnlimitedMemberPlan
-                  ? (
-                    <div className='flex space-x-1'>
-                      <div>{t('billing.plansCommon.member')}{locale !== LanguagesSupported[1] && accounts.length > 1 && 's'}</div>
-                      <div className='text-gray-700'>{accounts.length}</div>
-                      <div>/</div>
-                      <div>{plan.total.teamMembers === NUM_INFINITE ? t('billing.plansCommon.unlimited') : plan.total.teamMembers}</div>
-                    </div>
-                  )
-                  : (
-                    <div className='flex space-x-1'>
-                      <div>{accounts.length}</div>
-                      <div>{t('billing.plansCommon.memberAfter')}{locale !== LanguagesSupported[1] && accounts.length > 1 && 's'}</div>
-                    </div>
-                  )}
-              </div>
-            )}
-
-          </div>
-          {isMemberFull && (
-            <UpgradeBtn className='mr-2' loc='member-invite' />
-          )}
-          <div className={
-            `shrink-0 flex items-center py-[7px] px-3 border-[0.5px] border-gray-200
-            text-[13px] font-medium text-primary-600 bg-white
-            shadow-xs rounded-lg ${(isCurrentWorkspaceManager && !isMemberFull) ? 'cursor-pointer' : 'grayscale opacity-50 cursor-default'}`
-          } onClick={() => (isCurrentWorkspaceManager && !isMemberFull) && setInviteModalVisible(true)}>
-            <RiUserAddLine className='w-4 h-4 mr-2 ' />
-            {t('common.members.invite')}
-          </div>
-        </div>
-        <div className='overflow-visible lg:overflow-visible'>
-          <div className='flex items-center py-[7px] border-b border-divider-regular min-w-[480px]'>
-            <div className='grow px-3 system-xs-medium-uppercase text-text-tertiary'>{t('common.members.name')}</div>
-            <div className='shrink-0 w-[104px] system-xs-medium-uppercase text-text-tertiary'>{t('common.members.lastActive')}</div>
-            <div className='shrink-0 w-[96px] px-3 system-xs-medium-uppercase text-text-tertiary'>{t('common.members.role')}</div>
-          </div>
-          <div className='min-w-[480px] relative'>
-            {
-              accounts.map(account => (
-                <div key={account.id} className='flex border-b border-divider-subtle'>
-                  <div className='grow flex items-center py-2 px-3'>
-                    <Avatar avatar={account.avatar_url} size={24} className='mr-2' name={account.name} />
-                    <div className=''>
-                      <div className='text-text-secondary system-sm-medium'>
-                        {account.name}
-                        {account.status === 'pending' && <span className='ml-1 system-xs-regular text-[#DC6803]'>{t('common.members.pending')}</span>}
-                        {userProfile.email === account.email && <span className='system-xs-regular text-text-tertiary'>{t('common.members.you')}</span>}
-                      </div>
-                      <div className='text-text-tertiary system-xs-regular'>{account.email}</div>
-                    </div>
+      <div className="flex flex-col">
+        <div className="mb-6 flex items-center gap-3 rounded-xl border-t-[0.5px] border-l-[0.5px] border-divider-subtle bg-linear-to-r from-background-gradient-bg-fill-chat-bg-2 to-background-gradient-bg-fill-chat-bg-1 py-2 pr-5 pl-2">
+          <WorkspaceAvatar name={currentWorkspace.name} size="2xl" />
+          <div className="grow">
+            <div className="flex items-center gap-1 system-md-semibold text-text-secondary">
+              <span>{currentWorkspace?.name}</span>
+              {isCurrentWorkspaceOwner && (
+                <span>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          type="button"
+                          aria-label={t(($) => $['account.editWorkspaceInfo'], { ns: 'common' })}
+                          className="cursor-pointer rounded-md border-none bg-transparent p-1 hover:bg-black/5"
+                          onClick={() => {
+                            setEditWorkspaceModalVisible(true)
+                          }}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="i-ri-pencil-line size-4 text-text-tertiary"
+                          />
+                        </button>
+                      }
+                    />
+                    <TooltipContent>
+                      {t(($) => $['account.editWorkspaceInfo'], { ns: 'common' })}
+                    </TooltipContent>
+                  </Tooltip>
+                </span>
+              )}
+            </div>
+            <div className="mt-1 system-xs-medium text-text-tertiary">
+              {enableBilling && isNotUnlimitedMemberPlan ? (
+                <div className="flex space-x-1">
+                  <div>
+                    {t(($) => $['plansCommon.member'], { ns: 'billing' })}
+                    {locale !== LanguagesSupported[1] && accounts.length > 1 && 's'}
                   </div>
-                  <div className='shrink-0 flex items-center w-[104px] py-2 system-xs-regular text-text-secondary'>{dayjs(Number((account.last_active_at || account.created_at)) * 1000).locale(locale === 'zh-Hans' ? 'zh-cn' : 'en').fromNow()}</div>
-                  <div className='shrink-0 w-[96px] flex items-center'>
-                    {
-                      ((isCurrentWorkspaceOwner && account.role !== 'owner') || (isCurrentWorkspaceManager && !['owner', 'admin'].includes(account.role)))
-                        ? <Operation member={account} operatorRole={currentWorkspace.role} onOperate={mutate} />
-                        : <div className='px-3 system-xs-regular text-text-secondary'>{RoleMap[account.role] || RoleMap.normal}</div>
-                    }
+                  <div className="">{accounts.length}</div>
+                  <div>/</div>
+                  <div>
+                    {plan.total.teamMembers === NUM_INFINITE
+                      ? t(($) => $['plansCommon.unlimited'], { ns: 'billing' })
+                      : plan.total.teamMembers}
                   </div>
                 </div>
-              ))
-            }
+              ) : (
+                <div className="flex space-x-1">
+                  <div>{accounts.length}</div>
+                  <div>
+                    {t(($) => $['plansCommon.memberAfter'], { ns: 'billing' })}
+                    {locale !== LanguagesSupported[1] && accounts.length > 1 && 's'}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          {isMemberFull && <UpgradeBtn className="mr-2" loc="member-invite" />}
+          <div className="shrink-0">
+            {canManageMembers && (
+              <InviteModal
+                open={inviteModalVisible}
+                trigger={<InviteButton />}
+                isEmailSetup={systemFeatures.is_email_setup}
+                onOpenChange={setInviteModalVisible}
+                onSend={setInvitationResults}
+              />
+            )}
+          </div>
+        </div>
+        <div className="overflow-visible lg:overflow-visible">
+          <div className="flex min-w-120 items-center border-b border-divider-regular py-1.75">
+            <div className="w-65 shrink-0 px-3 system-xs-medium-uppercase text-text-tertiary">
+              {t(($) => $['members.name'], { ns: 'common' })}
+            </div>
+            <div className="w-30 shrink-0 system-xs-medium-uppercase text-text-tertiary">
+              {t(($) => $['members.lastActive'], { ns: 'common' })}
+            </div>
+            <div className="min-w-0 grow px-3 system-xs-medium-uppercase text-text-tertiary">
+              {roleColumnLabel}
+            </div>
+          </div>
+          <div className="relative min-w-120">
+            {accounts.map((account) => (
+              <MemberRow
+                key={account.id}
+                member={account}
+                roles={account.roles}
+                isCurrentUser={userProfileEmail === account.email}
+                canManage={canManageMembers}
+                canTransferOwnership={isCurrentWorkspaceOwner && isAllowTransferWorkspace}
+                allowMultipleRoles={systemFeatures.rbac_enabled}
+                onOpenDetails={handleOpenDetails}
+                onTransferOwnership={handleTransferOwnership}
+              />
+            ))}
           </div>
         </div>
       </div>
-      {
-        inviteModalVisible && (
-          <InviteModal
-            isEmailSetup={systemFeatures.is_email_setup}
-            onCancel={() => setInviteModalVisible(false)}
-            onSend={(invitationResults) => {
-              setInvitedModalVisible(true)
-              setInvitationResults(invitationResults)
-              mutate()
-            }}
-          />
-        )
-      }
-      {
-        invitedModalVisible && (
-          <InvitedModal
-            invitationResults={invitationResults}
-            onCancel={() => setInvitedModalVisible(false)}
-          />
-        )
-      }
+      {invitationResults && (
+        <InvitedModal
+          invitationResults={invitationResults}
+          onCancel={() => setInvitationResults(null)}
+        />
+      )}
+      {editWorkspaceModalVisible && (
+        <EditWorkspaceModal onCancel={() => setEditWorkspaceModalVisible(false)} />
+      )}
+      {showTransferOwnershipModal && (
+        <TransferOwnershipModal
+          show={showTransferOwnershipModal}
+          onClose={() => setShowTransferOwnershipModal(false)}
+        />
+      )}
+      {detailsMember && (
+        <MemberDetailsModal
+          member={detailsMember}
+          canAssignRoles={
+            canManageMembers &&
+            detailsMember.role !== 'owner' &&
+            userProfileEmail !== detailsMember.email
+          }
+          allowMultipleRoles={systemFeatures.rbac_enabled}
+          onClose={handleCloseDetails}
+          onAssignSubmit={handleAssignRolesSubmit}
+        />
+      )}
     </>
   )
 }

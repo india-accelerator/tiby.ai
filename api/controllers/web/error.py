@@ -7,6 +7,12 @@ class AppUnavailableError(BaseHTTPException):
     code = 400
 
 
+class AgentNotPublishedError(BaseHTTPException):
+    error_code = "agent_not_published"
+    description = "Agent has not been published. Please publish the Agent before using the web app."
+    code = 400
+
+
 class NotCompletionAppError(BaseHTTPException):
     error_code = "not_completion_app"
     description = "Please check if your Completion app mode matches the right API route."
@@ -97,33 +103,21 @@ class ProviderNotSupportSpeechToTextError(BaseHTTPException):
     code = 400
 
 
-class NoFileUploadedError(BaseHTTPException):
-    error_code = "no_file_uploaded"
-    description = "Please upload your file."
+class SpeechToTextDisabledError(BaseHTTPException):
+    error_code = "speech_to_text_disabled"
+    description = "Speech to text is disabled."
     code = 400
 
 
-class TooManyFilesError(BaseHTTPException):
-    error_code = "too_many_files"
-    description = "Only one file is allowed."
-    code = 400
-
-
-class FileTooLargeError(BaseHTTPException):
-    error_code = "file_too_large"
-    description = "File size exceeded. {message}"
-    code = 413
-
-
-class UnsupportedFileTypeError(BaseHTTPException):
-    error_code = "unsupported_file_type"
-    description = "File type not allowed."
-    code = 415
-
-
-class WebSSOAuthRequiredError(BaseHTTPException):
+class WebAppAuthRequiredError(BaseHTTPException):
     error_code = "web_sso_auth_required"
-    description = "Web SSO authentication required."
+    description = "Web app authentication required."
+    code = 401
+
+
+class WebAppAuthAccessDeniedError(BaseHTTPException):
+    error_code = "web_app_access_denied"
+    description = "You do not have permission to access this web app."
     code = 401
 
 
@@ -132,4 +126,10 @@ class InvokeRateLimitError(BaseHTTPException):
 
     error_code = "rate_limit_error"
     description = "Rate Limit Error"
+    code = 429
+
+
+class WebFormRateLimitExceededError(BaseHTTPException):
+    error_code = "web_form_rate_limit_exceeded"
+    description = "Too many form requests. Please try again later."
     code = 429

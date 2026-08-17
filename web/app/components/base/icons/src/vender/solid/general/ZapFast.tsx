@@ -1,15 +1,17 @@
 // GENERATE BY script
 // DON NOT EDIT IT MANUALLY
 
+import type { IconData } from '@/app/components/base/icons/IconBase'
 import * as React from 'react'
-import data from './ZapFast.json'
 import IconBase from '@/app/components/base/icons/IconBase'
-import type { IconBaseProps, IconData } from '@/app/components/base/icons/IconBase'
+import data from './ZapFast.json'
 
-const Icon = React.forwardRef<React.MutableRefObject<SVGElement>, Omit<IconBaseProps, 'data'>>((
-  props,
+const Icon = ({
   ref,
-) => <IconBase {...props} ref={ref} data={data as IconData} />)
+  ...props
+}: React.SVGProps<SVGSVGElement> & {
+  ref?: React.RefObject<React.RefObject<HTMLOrSVGElement>>
+}) => <IconBase {...props} ref={ref} data={data as IconData} />
 
 Icon.displayName = 'ZapFast'
 

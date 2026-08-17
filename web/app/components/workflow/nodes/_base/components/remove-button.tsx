@@ -1,25 +1,23 @@
 'use client'
 import type { FC } from 'react'
-import React from 'react'
 import { RiDeleteBinLine } from '@remixicon/react'
-import cn from '@/utils/classnames'
+import * as React from 'react'
+import ActionButton from '@/app/components/base/action-button'
 
-type Props = {
+type Props = Readonly<{
   className?: string
   onClick: (e: React.MouseEvent) => void
-}
+}>
 
-const Remove: FC<Props> = ({
-  className,
-  onClick,
-}) => {
+const Remove: FC<Props> = ({ onClick }) => {
   return (
-    <div
-      className={cn(className, 'p-1 cursor-pointer rounded-md hover:bg-black/5 text-gray-500 hover:text-gray-800')}
+    <ActionButton
+      size="l"
+      className="group shrink-0 hover:bg-state-destructive-hover!"
       onClick={onClick}
     >
-      <RiDeleteBinLine className='w-4 h-4' />
-    </div>
+      <RiDeleteBinLine className="size-4 text-text-tertiary group-hover:text-text-destructive" />
+    </ActionButton>
   )
 }
 export default React.memo(Remove)

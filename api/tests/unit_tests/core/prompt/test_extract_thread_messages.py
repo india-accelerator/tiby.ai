@@ -1,20 +1,56 @@
+from datetime import datetime, timedelta
+from decimal import Decimal
 from uuid import uuid4
+
+import pytest
+from sqlalchemy.orm import Session
 
 from constants import UUID_NIL
 from core.prompt.utils.extract_thread_messages import extract_thread_messages
+from core.prompt.utils.get_thread_messages_length import get_thread_messages_length
+from models.enums import ConversationFromSource
+from models.model import Message
 
 
-class TestMessage:
-    def __init__(self, id, parent_message_id):
+def _persisted_message(
+    *,
+    message_id: str,
+    conversation_id: str,
+    parent_message_id: str,
+    answer: str,
+    created_at: datetime,
+) -> Message:
+    message = Message(
+        id=message_id,
+        app_id="app-id",
+        conversation_id=conversation_id,
+        query="question",
+        message={"role": "user", "content": "question"},
+        answer=answer,
+        message_unit_price=Decimal("0.0001"),
+        answer_unit_price=Decimal("0.0001"),
+        currency="USD",
+        from_source=ConversationFromSource.API,
+        parent_message_id=parent_message_id,
+        created_at=created_at,
+        updated_at=created_at,
+    )
+    message._inputs = {}
+    return message
+
+
+class MockMessage:
+    def __init__(self, id, parent_message_id, answer="answer"):
         self.id = id
         self.parent_message_id = parent_message_id
+        self.answer = answer
 
     def __getitem__(self, item):
         return getattr(self, item)
 
 
 def test_extract_thread_messages_single_message():
-    messages = [TestMessage(str(uuid4()), UUID_NIL)]
+    messages = [MockMessage(str(uuid4()), UUID_NIL)]
     result = extract_thread_messages(messages)
     assert len(result) == 1
     assert result[0] == messages[0]
@@ -23,11 +59,11 @@ def test_extract_thread_messages_single_message():
 def test_extract_thread_messages_linear_thread():
     id1, id2, id3, id4, id5 = str(uuid4()), str(uuid4()), str(uuid4()), str(uuid4()), str(uuid4())
     messages = [
-        TestMessage(id5, id4),
-        TestMessage(id4, id3),
-        TestMessage(id3, id2),
-        TestMessage(id2, id1),
-        TestMessage(id1, UUID_NIL),
+        MockMessage(id5, id4),
+        MockMessage(id4, id3),
+        MockMessage(id3, id2),
+        MockMessage(id2, id1),
+        MockMessage(id1, UUID_NIL),
     ]
     result = extract_thread_messages(messages)
     assert len(result) == 5
@@ -37,10 +73,10 @@ def test_extract_thread_messages_linear_thread():
 def test_extract_thread_messages_branched_thread():
     id1, id2, id3, id4 = str(uuid4()), str(uuid4()), str(uuid4()), str(uuid4())
     messages = [
-        TestMessage(id4, id2),
-        TestMessage(id3, id2),
-        TestMessage(id2, id1),
-        TestMessage(id1, UUID_NIL),
+        MockMessage(id4, id2),
+        MockMessage(id3, id2),
+        MockMessage(id2, id1),
+        MockMessage(id1, UUID_NIL),
     ]
     result = extract_thread_messages(messages)
     assert len(result) == 3
@@ -56,9 +92,9 @@ def test_extract_thread_messages_empty_list():
 def test_extract_thread_messages_partially_loaded():
     id0, id1, id2, id3 = str(uuid4()), str(uuid4()), str(uuid4()), str(uuid4())
     messages = [
-        TestMessage(id3, id2),
-        TestMessage(id2, id1),
-        TestMessage(id1, id0),
+        MockMessage(id3, id2),
+        MockMessage(id2, id1),
+        MockMessage(id1, id0),
     ]
     result = extract_thread_messages(messages)
     assert len(result) == 3
@@ -68,9 +104,9 @@ def test_extract_thread_messages_partially_loaded():
 def test_extract_thread_messages_legacy_messages():
     id1, id2, id3 = str(uuid4()), str(uuid4()), str(uuid4())
     messages = [
-        TestMessage(id3, UUID_NIL),
-        TestMessage(id2, UUID_NIL),
-        TestMessage(id1, UUID_NIL),
+        MockMessage(id3, UUID_NIL),
+        MockMessage(id2, UUID_NIL),
+        MockMessage(id1, UUID_NIL),
     ]
     result = extract_thread_messages(messages)
     assert len(result) == 3
@@ -80,12 +116,85 @@ def test_extract_thread_messages_legacy_messages():
 def test_extract_thread_messages_mixed_with_legacy_messages():
     id1, id2, id3, id4, id5 = str(uuid4()), str(uuid4()), str(uuid4()), str(uuid4()), str(uuid4())
     messages = [
-        TestMessage(id5, id4),
-        TestMessage(id4, id2),
-        TestMessage(id3, id2),
-        TestMessage(id2, UUID_NIL),
-        TestMessage(id1, UUID_NIL),
+        MockMessage(id5, id4),
+        MockMessage(id4, id2),
+        MockMessage(id3, id2),
+        MockMessage(id2, UUID_NIL),
+        MockMessage(id1, UUID_NIL),
     ]
     result = extract_thread_messages(messages)
     assert len(result) == 4
     assert [msg["id"] for msg in result] == [id5, id4, id2, id1]
+
+
+def test_extract_thread_messages_breaks_when_parent_is_none():
+    id1, id2 = str(uuid4()), str(uuid4())
+    messages = [MockMessage(id2, None), MockMessage(id1, UUID_NIL)]
+
+    result = extract_thread_messages(messages)
+
+    assert len(result) == 1
+    assert result[0].id == id2
+
+
+@pytest.mark.parametrize("sqlite_session", [(Message,)], indirect=True)
+def test_get_thread_messages_length_excludes_newly_created_empty_answer(sqlite_session: Session):
+    id1, id2 = str(uuid4()), str(uuid4())
+    now = datetime.now()
+    messages = [
+        _persisted_message(
+            message_id=id2,
+            conversation_id="conversation-1",
+            parent_message_id=id1,
+            answer="",
+            created_at=now,
+        ),
+        _persisted_message(
+            message_id=id1,
+            conversation_id="conversation-1",
+            parent_message_id=UUID_NIL,
+            answer="ok",
+            created_at=now - timedelta(seconds=1),
+        ),
+        _persisted_message(
+            message_id=str(uuid4()),
+            conversation_id="other-conversation",
+            parent_message_id=UUID_NIL,
+            answer="unrelated",
+            created_at=now + timedelta(seconds=1),
+        ),
+    ]
+    sqlite_session.add_all(messages)
+    sqlite_session.commit()
+
+    length = get_thread_messages_length("conversation-1", session=sqlite_session)
+
+    assert length == 1
+
+
+@pytest.mark.parametrize("sqlite_session", [(Message,)], indirect=True)
+def test_get_thread_messages_length_keeps_non_empty_latest_answer(sqlite_session: Session):
+    id1, id2 = str(uuid4()), str(uuid4())
+    now = datetime.now()
+    messages = [
+        _persisted_message(
+            message_id=id2,
+            conversation_id="conversation-2",
+            parent_message_id=id1,
+            answer="latest-answer",
+            created_at=now,
+        ),
+        _persisted_message(
+            message_id=id1,
+            conversation_id="conversation-2",
+            parent_message_id=UUID_NIL,
+            answer="older-answer",
+            created_at=now - timedelta(seconds=1),
+        ),
+    ]
+    sqlite_session.add_all(messages)
+    sqlite_session.commit()
+
+    length = get_thread_messages_length("conversation-2", session=sqlite_session)
+
+    assert length == 2

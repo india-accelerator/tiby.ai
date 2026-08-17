@@ -1,43 +1,49 @@
 import type { FC } from 'react'
-import React from 'react'
-import { useTranslation } from 'react-i18next'
-import {
-  RiArrowRightSLine,
-} from '@remixicon/react'
-import VarReferencePicker from '../_base/components/variable/var-reference-picker'
-import Split from '../_base/components/split'
-import ResultPanel from '../../run/result-panel'
-import IterationResultPanel from '../../run/iteration-result-panel'
-import { MAX_ITERATION_PARALLEL_NUM, MIN_ITERATION_PARALLEL_NUM } from '../../constants'
 import type { IterationNodeType } from './types'
-import useConfig from './use-config'
-import { ErrorHandleMode, InputVarType, type NodePanelProps } from '@/app/components/workflow/types'
-import Field from '@/app/components/workflow/nodes/_base/components/field'
-import BeforeRunForm from '@/app/components/workflow/nodes/_base/components/before-run-form'
-import Switch from '@/app/components/base/switch'
-import Select from '@/app/components/base/select'
-import Slider from '@/app/components/base/slider'
+import type { NodePanelProps } from '@/app/components/workflow/types'
+import { Fieldset, FieldsetLegend } from '@langgenius/dify-ui/fieldset'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectItemIndicator,
+  SelectItemText,
+  SelectLabel,
+  SelectTrigger,
+} from '@langgenius/dify-ui/select'
+import { Slider } from '@langgenius/dify-ui/slider'
+import { Switch } from '@langgenius/dify-ui/switch'
+import * as React from 'react'
+import { useTranslation } from 'react-i18next'
 import Input from '@/app/components/base/input'
+import Field from '@/app/components/workflow/nodes/_base/components/field'
+import { ErrorHandleMode } from '@/app/components/workflow/types'
+import { MAX_PARALLEL_LIMIT } from '@/config'
+import { MIN_ITERATION_PARALLEL_NUM } from '../../constants'
+import Split from '../_base/components/split'
+import VarReferencePicker from '../_base/components/variable/var-reference-picker'
+import useConfig from './use-config'
 
-const i18nPrefix = 'workflow.nodes.iteration'
+const i18nPrefix = 'nodes.iteration'
 
-const Panel: FC<NodePanelProps<IterationNodeType>> = ({
-  id,
-  data,
-}) => {
+const Panel: FC<NodePanelProps<IterationNodeType>> = ({ id, data }) => {
   const { t } = useTranslation()
+  const maxParallelismLabel = t(($) => $[`${i18nPrefix}.MaxParallelismTitle`], { ns: 'workflow' })
+  const errorResponseMethodLabel = t(($) => $[`${i18nPrefix}.errorResponseMethod`], {
+    ns: 'workflow',
+  })
   const responseMethod = [
     {
       value: ErrorHandleMode.Terminated,
-      name: t(`${i18nPrefix}.ErrorMethod.operationTerminated`),
+      name: t(($) => $[`${i18nPrefix}.ErrorMethod.operationTerminated`], { ns: 'workflow' }),
     },
     {
       value: ErrorHandleMode.ContinueOnError,
-      name: t(`${i18nPrefix}.ErrorMethod.continueOnError`),
+      name: t(($) => $[`${i18nPrefix}.ErrorMethod.continueOnError`], { ns: 'workflow' }),
     },
     {
       value: ErrorHandleMode.RemoveAbnormalOutput,
-      name: t(`${i18nPrefix}.ErrorMethod.removeAbnormalOutput`),
+      name: t(($) => $[`${i18nPrefix}.ErrorMethod.removeAbnormalOutput`], { ns: 'workflow' }),
     },
   ]
   const {
@@ -48,36 +54,26 @@ const Panel: FC<NodePanelProps<IterationNodeType>> = ({
     childrenNodeVars,
     iterationChildrenNodes,
     handleOutputVarChange,
-    isShowSingleRun,
-    hideSingleRun,
-    isShowIterationDetail,
-    backToSingleRun,
-    showIterationDetail,
-    hideIterationDetail,
-    runningStatus,
-    handleRun,
-    handleStop,
-    runResult,
-    inputVarValues,
-    setInputVarValues,
-    usedOutVars,
-    iterator,
-    setIterator,
-    iteratorInputKey,
-    iterationRunResult,
     changeParallel,
     changeErrorResponseMode,
     changeParallelNums,
+    changeFlattenOutput,
   } = useConfig(id, data)
+  const selectedResponseMethod = responseMethod.find(
+    (item) => item.value === inputs.error_handle_mode,
+  )
 
   return (
-    <div className='pt-2 pb-2'>
-      <div className='px-4 pb-4 space-y-4'>
+    <div className="py-2">
+      <div className="space-y-4 px-4 pb-4">
         <Field
-          title={t(`${i18nPrefix}.input`)}
-          operations={(
-            <div className='flex items-center h-[18px] px-1 border border-divider-deep rounded-[5px] system-2xs-medium-uppercase text-text-tertiary capitalize'>Array</div>
-          )}
+          title={t(($) => $[`${i18nPrefix}.input`], { ns: 'workflow' })}
+          required
+          operations={
+            <div className="flex h-[18px] items-center rounded-[5px] border border-divider-deep px-1 system-2xs-medium-uppercase text-text-tertiary capitalize">
+              Array
+            </div>
+          }
         >
           <VarReferencePicker
             readonly={readOnly}
@@ -90,12 +86,15 @@ const Panel: FC<NodePanelProps<IterationNodeType>> = ({
         </Field>
       </div>
       <Split />
-      <div className='mt-2 px-4 pb-4 space-y-4'>
+      <div className="mt-2 space-y-4 px-4 pb-4">
         <Field
-          title={t(`${i18nPrefix}.output`)}
-          operations={(
-            <div className='flex items-center h-[18px] px-1 border border-divider-deep rounded-[5px] system-2xs-medium-uppercase text-text-tertiary capitalize'>Array</div>
-          )}
+          title={t(($) => $[`${i18nPrefix}.output`], { ns: 'workflow' })}
+          required
+          operations={
+            <div className="flex h-[18px] items-center rounded-[5px] border border-divider-deep px-1 system-2xs-medium-uppercase text-text-tertiary capitalize">
+              Array
+            </div>
+          }
         >
           <VarReferencePicker
             readonly={readOnly}
@@ -108,82 +107,98 @@ const Panel: FC<NodePanelProps<IterationNodeType>> = ({
           />
         </Field>
       </div>
-      <div className='px-4 pb-2'>
-        <Field title={t(`${i18nPrefix}.parallelMode`)} tooltip={<div className='w-[230px]'>{t(`${i18nPrefix}.parallelPanelDesc`)}</div>} inline>
-          <Switch defaultValue={inputs.is_parallel} onChange={changeParallel} />
-        </Field>
-      </div>
-      {
-        inputs.is_parallel && (<div className='px-4 pb-2'>
-          <Field title={t(`${i18nPrefix}.MaxParallelismTitle`)} isSubTitle tooltip={<div className='w-[230px]'>{t(`${i18nPrefix}.MaxParallelismDesc`)}</div>}>
-            <div className='flex row'>
-              <Input type='number' wrapperClassName='w-18 mr-4 ' max={MAX_ITERATION_PARALLEL_NUM} min={MIN_ITERATION_PARALLEL_NUM} value={inputs.parallel_nums} onChange={(e) => { changeParallelNums(Number(e.target.value)) }} />
-              <Slider
-                value={inputs.parallel_nums}
-                onChange={changeParallelNums}
-                max={MAX_ITERATION_PARALLEL_NUM}
-                min={MIN_ITERATION_PARALLEL_NUM}
-                className=' flex-shrink-0 flex-1 mt-4'
-              />
-            </div>
-
-          </Field>
-        </div>)
-      }
-      <Split />
-
-      <div className='px-4 py-2'>
-        <Field title={t(`${i18nPrefix}.errorResponseMethod`)} >
-          <Select items={responseMethod} defaultValue={inputs.error_handle_mode} onSelect={changeErrorResponseMode} allowSearch={false} />
-        </Field>
-      </div>
-
-      {isShowSingleRun && (
-        <BeforeRunForm
-          nodeName={inputs.title}
-          onHide={hideSingleRun}
-          forms={[
-            {
-              inputs: [...usedOutVars],
-              values: inputVarValues,
-              onChange: setInputVarValues,
-            },
-            {
-              label: t(`${i18nPrefix}.input`)!,
-              inputs: [{
-                label: '',
-                variable: iteratorInputKey,
-                type: InputVarType.iterator,
-                required: false,
-              }],
-              values: { [iteratorInputKey]: iterator },
-              onChange: keyValue => setIterator((keyValue as any)[iteratorInputKey]),
-            },
-          ]}
-          runningStatus={runningStatus}
-          onRun={handleRun}
-          onStop={handleStop}
-          result={
-            <div className='mt-3'>
-              <div className='px-4'>
-                <div className='flex items-center h-[34px] justify-between px-3 bg-gray-100 border-[0.5px] border-gray-200 rounded-lg cursor-pointer' onClick={showIterationDetail}>
-                  <div className='leading-[18px] text-[13px] font-medium text-gray-700'>{t(`${i18nPrefix}.iteration`, { count: iterationRunResult.length })}</div>
-                  <RiArrowRightSLine className='w-3.5 h-3.5 text-gray-500' />
-                </div>
-                <Split className='mt-3' />
-              </div>
-              <ResultPanel {...runResult} showSteps={false} />
+      <div className="px-4 pb-2">
+        <Field
+          title={t(($) => $[`${i18nPrefix}.parallelMode`], { ns: 'workflow' })}
+          tooltip={
+            <div className="w-[230px]">
+              {t(($) => $[`${i18nPrefix}.parallelPanelDesc`], { ns: 'workflow' })}
             </div>
           }
-        />
+          inline
+        >
+          <Switch checked={inputs.is_parallel} onCheckedChange={changeParallel} />
+        </Field>
+      </div>
+      {inputs.is_parallel && (
+        <div className="px-4 pb-2">
+          <Field
+            title={maxParallelismLabel}
+            isSubTitle
+            tooltip={
+              <div className="w-[230px]">
+                {t(($) => $[`${i18nPrefix}.MaxParallelismDesc`], { ns: 'workflow' })}
+              </div>
+            }
+          >
+            <Fieldset className="row flex">
+              <FieldsetLegend className="sr-only">{maxParallelismLabel}</FieldsetLegend>
+              <Input
+                aria-label={maxParallelismLabel}
+                type="number"
+                wrapperClassName="w-18 mr-4"
+                max={MAX_PARALLEL_LIMIT}
+                min={MIN_ITERATION_PARALLEL_NUM}
+                value={inputs.parallel_nums}
+                onChange={(e) => {
+                  changeParallelNums(Number(e.target.value))
+                }}
+              />
+              <Slider
+                value={inputs.parallel_nums}
+                onValueChange={changeParallelNums}
+                max={MAX_PARALLEL_LIMIT}
+                min={MIN_ITERATION_PARALLEL_NUM}
+                className="mt-4 flex-1 shrink-0"
+                aria-label={maxParallelismLabel}
+              />
+            </Fieldset>
+          </Field>
+        </div>
       )}
-      {isShowIterationDetail && (
-        <IterationResultPanel
-          onBack={backToSingleRun}
-          onHide={hideIterationDetail}
-          list={iterationRunResult}
-        />
-      )}
+      <Split />
+
+      <div className="px-4 py-2">
+        <Field title={errorResponseMethodLabel}>
+          <Select<ErrorHandleMode>
+            value={selectedResponseMethod?.value ?? null}
+            onValueChange={(nextValue) => {
+              if (nextValue == null) return
+              const nextItem = responseMethod.find((item) => item.value === nextValue)
+              if (nextItem) changeErrorResponseMode(nextItem)
+            }}
+          >
+            <SelectLabel className="sr-only">{errorResponseMethodLabel}</SelectLabel>
+            <SelectTrigger className="w-full">
+              {selectedResponseMethod?.name ?? t(($) => $['placeholder.select'], { ns: 'common' })}
+            </SelectTrigger>
+            <SelectContent>
+              {responseMethod.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  <SelectItemText>{item.name}</SelectItemText>
+                  <SelectItemIndicator />
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
+
+      <Split />
+
+      <div className="px-4 py-2">
+        <Field
+          title={t(($) => $[`${i18nPrefix}.flattenOutput`], { ns: 'workflow' })}
+          tooltip={
+            <div className="w-[230px]">
+              {t(($) => $[`${i18nPrefix}.flattenOutputDesc`], { ns: 'workflow' })}
+            </div>
+          }
+          inline
+        >
+          <Switch checked={inputs.flatten_output} onCheckedChange={changeFlattenOutput} />
+        </Field>
+      </div>
     </div>
   )
 }

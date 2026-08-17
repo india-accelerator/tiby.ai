@@ -1,16 +1,14 @@
-import type { FC } from 'react'
-import React from 'react'
+'use client'
+import type { FC, PropsWithChildren } from 'react'
+import * as React from 'react'
+import { useTranslation } from 'react-i18next'
 import ExploreClient from '@/app/components/explore'
-export type IAppDetail = {
-  children: React.ReactNode
+import useDocumentTitle from '@/hooks/use-document-title'
+
+const ExploreLayout: FC<PropsWithChildren> = ({ children }) => {
+  const { t } = useTranslation()
+  useDocumentTitle(t(($) => $['menus.explore'], { ns: 'common' }))
+  return <ExploreClient>{children}</ExploreClient>
 }
 
-const AppDetail: FC<IAppDetail> = ({ children }) => {
-  return (
-    <ExploreClient>
-      {children}
-    </ExploreClient>
-  )
-}
-
-export default React.memo(AppDetail)
+export default React.memo(ExploreLayout)
