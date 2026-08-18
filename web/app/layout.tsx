@@ -4,6 +4,7 @@ import { TooltipProvider } from '@langgenius/dify-ui/tooltip'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { Provider as JotaiProvider } from 'jotai/react'
 import { ThemeProvider } from 'next-themes'
+import { JetBrains_Mono, Sora } from 'next/font/google'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { IS_PROD } from '@/config'
 import { TanStackQueryProvider } from '@/context/query-client'
@@ -27,6 +28,20 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 }
 
+const sora = Sora({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-sans',
+  fallback: ['ui-sans-serif', 'system-ui', 'sans-serif'],
+})
+
+const jetBrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400'],
+  variable: '--font-mono',
+  fallback: ['ui-monospace', 'monospace'],
+})
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const datasetMap = getDatasetMap()
   const queryClient = getQueryClientServer()
@@ -40,18 +55,22 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const nonce = IS_PROD ? (requestHeaders.get('x-nonce') ?? undefined) : undefined
 
   return (
-    <html lang={locale ?? 'en'} className="h-full" suppressHydrationWarning>
+    <html
+      lang={locale ?? 'en'}
+      className={`h-full ${sora.variable} ${jetBrainsMono.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#1C64F2" />
+        <meta name="theme-color" content="#1D74F5" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Dify" />
+        <meta name="apple-mobile-web-app-title" content="Tiby" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="icon" type="image/png" sizes="32x32" href="/icon-192x192.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/icon-192x192.png" />
-        <meta name="msapplication-TileColor" content="#1C64F2" />
+        <meta name="msapplication-TileColor" content="#1D74F5" />
         <meta name="msapplication-config" content="/browserconfig.xml" />
 
         <ReactScanLoader />

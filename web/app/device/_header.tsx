@@ -1,7 +1,7 @@
 'use client'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import Divider from '@/app/components/base/divider'
-import { DifyLogo } from '@/app/components/base/logo/dify-logo'
+import { TibyLogo } from '@/app/components/base/logo/tiby-logo'
 import LocaleMenu from '@/app/signin/_locale-menu'
 import { useLocale } from '@/context/i18n'
 import { systemFeaturesQueryOptions } from '@/features/system-features/client'
@@ -27,7 +27,7 @@ const Header = () => {
           alt="logo"
         />
       ) : (
-        <DifyLogo alt="Tiby" size="large" />
+        <TibyLogo alt="Tiby" size="large" />
       )}
       <div className="flex items-center gap-1">
         <LocaleMenu

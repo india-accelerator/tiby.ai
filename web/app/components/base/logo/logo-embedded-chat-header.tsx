@@ -1,6 +1,6 @@
 import type { FC } from 'react'
 import { cn } from '@langgenius/dify-ui/cn'
-import { basePath } from '@/utils/var'
+import { TibyMark } from './tiby-mark'
 
 type LogoEmbeddedChatHeaderProps = {
   className?: string
@@ -8,16 +8,14 @@ type LogoEmbeddedChatHeaderProps = {
 
 const LogoEmbeddedChatHeader: FC<LogoEmbeddedChatHeaderProps> = ({ className }) => {
   return (
-    <picture>
-      <source media="(resolution: 1x)" srcSet="/logo/logo-embedded-chat-header.png" />
-      <source media="(resolution: 2x)" srcSet="/logo/logo-embedded-chat-header@2x.png" />
-      <source media="(resolution: 3x)" srcSet="/logo/logo-embedded-chat-header@3x.png" />
-      <img
-        src={`${basePath}/logo/logo-embedded-chat-header.png`}
-        alt="logo"
-        className={cn('block h-6 w-auto', className)}
-      />
-    </picture>
+    <div
+      className={cn(
+        'flex size-6 items-center justify-center rounded-[11%] bg-[#1D74F5]',
+        className,
+      )}
+    >
+      <TibyMark variant="reversed" className="size-2/3" aria-label="Tiby" role="img" />
+    </div>
   )
 }
 

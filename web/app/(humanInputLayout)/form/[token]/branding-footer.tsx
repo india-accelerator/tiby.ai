@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { DifyLogo } from '@/app/components/base/logo/dify-logo'
+import { TibyLogo } from '@/app/components/base/logo/tiby-logo'
 
 type BrandingFooterProps = {
   removeWebappBrand?: boolean
@@ -20,7 +20,7 @@ const BrandingFooter = ({ removeWebappBrand, replaceWebappLogo }: BrandingFooter
         {replaceWebappLogo ? (
           <img src={replaceWebappLogo} alt="logo" className="block h-5 w-auto" />
         ) : (
-          <DifyLogo alt="Tiby" size="small" />
+          <TibyLogo alt="Tiby" size="small" />
         )}
       </div>
     </div>

@@ -118,9 +118,9 @@ vi.mock('@/app/components/base/loading', () => ({
   default: () => <div>loading</div>,
 }))
 
-vi.mock('@/app/components/base/logo/dify-logo', () => ({
+vi.mock('@/app/components/base/logo/tiby-logo', () => ({
   __esModule: true,
-  DifyLogo: () => <div>dify-logo</div>,
+  TibyLogo: () => <div>tiby-logo</div>,
 }))
 
 vi.mock('@/app/components/base/app-icon', () => ({
@@ -246,7 +246,7 @@ describe('Human input share form', () => {
       else expect(screen.queryByText(/share\.humanInput\.submissionID/)).not.toBeInTheDocument()
 
       expect(screen.getByText('share.chat.poweredBy')).toBeInTheDocument()
-      expect(screen.getByText('dify-logo')).toBeInTheDocument()
+      expect(screen.getByText('tiby-logo')).toBeInTheDocument()
       unmount()
     })
   })
@@ -400,7 +400,7 @@ describe('Human input share form', () => {
     render(<FormContent />)
 
     expect(screen.queryByText('share.chat.poweredBy')).not.toBeInTheDocument()
-    expect(screen.queryByText('dify-logo')).not.toBeInTheDocument()
+    expect(screen.queryByText('tiby-logo')).not.toBeInTheDocument()
   })
 
   it('should render the custom branding logo when replace_webapp_logo is provided', () => {
@@ -426,6 +426,6 @@ describe('Human input share form', () => {
       'src',
       'https://example.com/custom-logo.png',
     )
-    expect(screen.queryByText('dify-logo')).not.toBeInTheDocument()
+    expect(screen.queryByText('tiby-logo')).not.toBeInTheDocument()
   })
 })

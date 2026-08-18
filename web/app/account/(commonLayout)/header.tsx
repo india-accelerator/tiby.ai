@@ -3,7 +3,7 @@ import { Button } from '@langgenius/dify-ui/button'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { DifyLogo } from '@/app/components/base/logo/dify-logo'
+import { TibyLogo } from '@/app/components/base/logo/tiby-logo'
 import { systemFeaturesQueryOptions } from '@/features/system-features/client'
 import Link from '@/next/link'
 import { useRouter } from '@/next/navigation'
@@ -37,7 +37,7 @@ const Header = () => {
               alt=""
             />
           ) : (
-            <DifyLogo alt="" />
+            <TibyLogo alt="" />
           )}
         </Link>
         <div className="h-4 w-px origin-center rotate-[11.31deg] bg-divider-regular" />

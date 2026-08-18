@@ -7,8 +7,8 @@ import { useTranslation } from 'react-i18next'
 import ChatWrapper from '@/app/components/base/chat/embedded-chatbot/chat-wrapper'
 import Header from '@/app/components/base/chat/embedded-chatbot/header'
 import Loading from '@/app/components/base/loading'
-import { DifyLogo } from '@/app/components/base/logo/dify-logo'
 import LogoHeader from '@/app/components/base/logo/logo-embedded-chat-header'
+import { TibyLogo } from '@/app/components/base/logo/tiby-logo'
 import { systemFeaturesQueryOptions } from '@/features/system-features/client'
 import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
 import useDocumentTitle from '@/hooks/use-document-title'
@@ -95,7 +95,7 @@ const Chatbot = () => {
                   className="block h-5 w-auto"
                 />
               ) : (
-                <DifyLogo alt="Tiby" size="small" />
+                <TibyLogo alt="Tiby" size="small" />
               )}
             </div>
           )}

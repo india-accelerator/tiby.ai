@@ -186,7 +186,7 @@ html[data-theme='dark'] {
   --color-components-icon-bg-teal-solid: #0e9384;
   --color-components-icon-bg-blue-light-solid: #0ba5ec;
   --color-components-icon-bg-blue-solid: #085afc;
-  --color-components-icon-bg-indigo-solid: #444ce7;
+  --color-components-icon-bg-indigo-solid: #4338ca;
   --color-components-icon-bg-violet-solid: #7839ee;
   --color-components-icon-bg-midnight-solid: #5d698d;
   --color-components-icon-bg-red-soft: rgb(240 68 56 / 0.2);
@@ -252,7 +252,7 @@ html[data-theme='dark'] {
   --color-components-premium-badge-indigo-bg-stop-0: #6172f3;
   --color-components-premium-badge-indigo-bg-stop-100: #3538cd;
   --color-components-premium-badge-indigo-stroke-stop-0: rgb(255 255 255 / 0.2);
-  --color-components-premium-badge-indigo-stroke-stop-100: #444ce7;
+  --color-components-premium-badge-indigo-stroke-stop-100: #4338ca;
   --color-components-premium-badge-indigo-text-stop-0: #eef4ff;
   --color-components-premium-badge-indigo-text-stop-100: #c7d7fe;
   --color-components-premium-badge-indigo-glow: #3538cd;
@@ -260,7 +260,7 @@ html[data-theme='dark'] {
   --color-components-premium-badge-indigo-bg-stop-0-hover: #a4bcfd;
   --color-components-premium-badge-indigo-bg-stop-100-hover: #3538cd;
   --color-components-premium-badge-indigo-stroke-stop-0-hover: rgb(255 255 255 / 0.5);
-  --color-components-premium-badge-indigo-stroke-stop-100-hover: #444ce7;
+  --color-components-premium-badge-indigo-stroke-stop-100-hover: #4338ca;
 
   --color-components-premium-badge-grey-bg-stop-0: #676f83;
   --color-components-premium-badge-grey-bg-stop-100: #495464;
@@ -419,7 +419,7 @@ html[data-theme='dark'] {
   --color-components-button-destructive-ghost-text-disabled: rgb(240 68 56 / 0.2);
   --color-components-button-destructive-ghost-bg-hover: rgb(240 68 56 / 0.14);
 
-  --color-components-button-indigo-bg: #444ce7;
+  --color-components-button-indigo-bg: #4338ca;
   --color-components-button-indigo-bg-hover: #6172f3;
   --color-components-button-indigo-bg-disabled: rgb(255 255 255 / 0.03);
 
@@ -652,7 +652,7 @@ html[data-theme='dark'] {
   --color-util-colors-indigo-indigo-100: #2d3282;
   --color-util-colors-indigo-indigo-200: #2d31a6;
   --color-util-colors-indigo-indigo-300: #3538cd;
-  --color-util-colors-indigo-indigo-400: #444ce7;
+  --color-util-colors-indigo-indigo-400: #4338ca;
   --color-util-colors-indigo-indigo-500: #6172f3;
   --color-util-colors-indigo-indigo-600: #8098f9;
   --color-util-colors-indigo-indigo-700: #a4bcfd;
@@ -679,7 +679,7 @@ html[data-theme='dark'] {
   --color-util-colors-blue-brand-blue-brand-100: #001ea0;
   --color-util-colors-blue-brand-blue-brand-200: #0025be;
   --color-util-colors-blue-brand-blue-brand-300: #002cde;
-  --color-util-colors-blue-brand-blue-brand-400: #0033ff;
+  --color-util-colors-blue-brand-blue-brand-400: #1d74f5;
   --color-util-colors-blue-brand-blue-brand-500: #085afc;
   --color-util-colors-blue-brand-blue-brand-600: #3072ff;
   --color-util-colors-blue-brand-blue-brand-700: #6694ff;
@@ -796,7 +796,7 @@ html[data-theme='dark'] {
   --color-saas-background-inverted: rgb(255 255 255 / 0.9);
   --color-saas-background-inverted-hover: #ffffff;
   --color-saas-pricing-grid-bg: rgb(200 206 218 / 0.2);
-  --color-saas-dify-blue-static: #0033ff;
+  --color-saas-dify-blue-static: #1d74f5;
   --color-saas-dify-blue-static-hover: #085afc;
   --color-saas-dify-blue-accessible: #0a68ff;
   --color-saas-dify-blue-inverted: #ffffff;
@@ -812,7 +812,7 @@ html[data-theme='dark'] {
   --color-brand-color-opacity-200: #051969;
   --color-brand-color-opacity-300: #07228e;
   --color-brand-color-opacity-400: #082bb4;
-  --color-brand-color-opacity-500: #0033ff;
+  --color-brand-color-opacity-500: #1d74f5;
   --color-brand-color-opacity-600: #4f6de5;
   --color-brand-color-opacity-700: #899eee;
   --color-brand-color-opacity-800: #bac6f5;
