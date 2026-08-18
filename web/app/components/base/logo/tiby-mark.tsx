@@ -5,12 +5,12 @@ type TibyMarkProps = Omit<SVGProps<SVGSVGElement>, 'viewBox' | 'fill' | 'xmlns'>
 }
 
 const BLADES = [
-  { inner: [50, 40], outer: [50, 8] },
-  { inner: [58.66, 45], outer: [86.37, 29] },
-  { inner: [58.66, 55], outer: [86.37, 71] },
-  { inner: [50, 60], outer: [50, 92] },
-  { inner: [41.34, 55], outer: [13.63, 71] },
-  { inner: [41.34, 45], outer: [13.63, 29] },
+  { inner: [50, 43.1], outer: [50, 8] },
+  { inner: [55.98, 46.55], outer: [86.37, 29] },
+  { inner: [55.98, 53.45], outer: [86.37, 71] },
+  { inner: [50, 56.9], outer: [50, 92] },
+  { inner: [44.02, 53.45], outer: [13.63, 71] },
+  { inner: [44.02, 46.55], outer: [13.63, 29] },
 ] as const
 
 export function TibyMark({ variant = 'azure', ...props }: TibyMarkProps) {
@@ -30,7 +30,6 @@ export function TibyMark({ variant = 'azure', ...props }: TibyMarkProps) {
           strokeLinecap="round"
         />
       ))}
-      <circle cx={50} cy={50} r={11} stroke={color} strokeWidth={7} />
     </svg>
   )
 }
