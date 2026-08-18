@@ -4,13 +4,15 @@ type TibyMarkProps = Omit<SVGProps<SVGSVGElement>, 'viewBox' | 'fill' | 'xmlns'>
   variant?: 'azure' | 'reversed'
 }
 
+const STROKE_WIDTH = 13
+
 const BLADES = [
-  { inner: [50, 43.1], outer: [50, 8] },
-  { inner: [55.98, 46.55], outer: [86.37, 29] },
-  { inner: [55.98, 53.45], outer: [86.37, 71] },
-  { inner: [50, 56.9], outer: [50, 92] },
-  { inner: [44.02, 53.45], outer: [13.63, 71] },
-  { inner: [44.02, 46.55], outer: [13.63, 29] },
+  { inner: [50, 37.1], outer: [50, 10] },
+  { inner: [61.17, 43.55], outer: [84.64, 30] },
+  { inner: [61.17, 56.45], outer: [84.64, 70] },
+  { inner: [50, 62.9], outer: [50, 90] },
+  { inner: [38.83, 56.45], outer: [15.36, 70] },
+  { inner: [38.83, 43.55], outer: [15.36, 30] },
 ] as const
 
 export function TibyMark({ variant = 'azure', ...props }: TibyMarkProps) {
@@ -26,7 +28,7 @@ export function TibyMark({ variant = 'azure', ...props }: TibyMarkProps) {
           x2={outer[0]}
           y2={outer[1]}
           stroke={color}
-          strokeWidth={7}
+          strokeWidth={STROKE_WIDTH}
           strokeLinecap="round"
         />
       ))}
